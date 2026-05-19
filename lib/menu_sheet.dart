@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'theme.dart';
 
@@ -10,20 +10,24 @@ class MenuSheet extends StatefulWidget {
     required this.textSize,
     required this.toneColors,
     required this.showTraditional,
+    required this.strokeSpeed,
     required this.onFontChanged,
     required this.onSizeChanged,
     required this.onToneColorsChanged,
     required this.onTraditionalChanged,
+    required this.onStrokeSpeedChanged,
   });
 
   final HanziFont font;
   final AppTextSize textSize;
   final bool toneColors;
   final bool showTraditional;
+  final double strokeSpeed;
   final ValueChanged<HanziFont> onFontChanged;
   final ValueChanged<AppTextSize> onSizeChanged;
   final ValueChanged<bool> onToneColorsChanged;
   final ValueChanged<bool> onTraditionalChanged;
+  final ValueChanged<double> onStrokeSpeedChanged;
 
   @override
   State<MenuSheet> createState() => _MenuSheetState();
@@ -34,6 +38,7 @@ class _MenuSheetState extends State<MenuSheet> {
   late AppTextSize _textSize;
   late bool _toneColors;
   late bool _showTraditional;
+  late double _strokeSpeed;
 
   @override
   void initState() {
@@ -42,7 +47,16 @@ class _MenuSheetState extends State<MenuSheet> {
     _textSize = widget.textSize;
     _toneColors = widget.toneColors;
     _showTraditional = widget.showTraditional;
+    _strokeSpeed = widget.strokeSpeed;
   }
+
+  // Speed stored as actual strokeAnimationSpeed value; 100% == 1.2 (default).
+  double get _speedPct => (_strokeSpeed / 1.2 * 100).roundToDouble();
+
+  static double _pctToSpeed(double pct) => (pct / 100.0 * 1.2).clamp(0.1, 5.0);
+
+  void _selectStrokeSpeed(double pct) =>
+      setState(() => _strokeSpeed = _pctToSpeed(pct));
 
   void _selectFont(HanziFont f) {
     setState(() => _font = f);
@@ -90,7 +104,7 @@ class _MenuSheetState extends State<MenuSheet> {
                   value: f,
                   groupValue: _font,
                   title: Text(f.label,
-                      style: GoogleFonts.getFont(f.family, fontSize: 15)),
+                      style: TextStyle(fontFamily: f.family, fontSize: 15)),
                   activeColor: kRed,
                   onChanged: (v) => _selectFont(v!),
                 )),
@@ -107,6 +121,35 @@ class _MenuSheetState extends State<MenuSheet> {
               ),
             ),
             const Divider(height: 1),
+            _heading(context, 'STROKE ANIMATION SPEED'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _speedPct.clamp(25.0, 300.0),
+                      min: 25,
+                      max: 300,
+                      divisions: 11,
+                      activeColor: kRed,
+                      onChanged: _selectStrokeSpeed,
+                      onChangeEnd: (pct) =>
+                          widget.onStrokeSpeedChanged(_pctToSpeed(pct)),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      '${_speedPct.round()}%',
+                      style: const TextStyle(fontSize: 13),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
             _heading(context, 'TONE COLOURS'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
@@ -120,7 +163,7 @@ class _MenuSheetState extends State<MenuSheet> {
                   ),
                   Switch(
                     value: _toneColors,
-                    activeColor: kRed,
+                    activeThumbColor: kRed,
                     onChanged: _selectToneColors,
                   ),
                 ],
@@ -140,7 +183,7 @@ class _MenuSheetState extends State<MenuSheet> {
                   ),
                   Switch(
                     value: _showTraditional,
-                    activeColor: kRed,
+                    activeThumbColor: kRed,
                     onChanged: _selectTraditional,
                   ),
                 ],
@@ -188,52 +231,92 @@ class AboutDialog extends StatelessWidget {
           ),
         );
 
-    return AlertDialog(
-      title: const Text('About Hansi'),
-      content: SingleChildScrollView(
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Hansi is a Chinese–English dictionary based on CC-CEDICT.',
-              style: bodyStyle,
+              'About Hansi',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
-            section(
-              'CC-CEDICT',
-              'Dictionary data © MDBG and contributors.\n'
-              'Licensed under Creative Commons Attribution-ShareAlike 4.0 '
-              'International (CC BY-SA 4.0).\n'
-              'https://cc-cedict.org',
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Hansi is a Chinese–English dictionary based on CC-CEDICT.',
+                      style: bodyStyle,
+                    ),
+                    const SizedBox(height: 20),
+                    section(
+                      'CC-CEDICT',
+                      'Dictionary data © MDBG and contributors.\n'
+                      'Licensed under Creative Commons Attribution-ShareAlike 4.0 '
+                      'International (CC BY-SA 4.0).\n'
+                      'https://cc-cedict.org',
+                    ),
+                    section(
+                      'Hanzi Frequency Data',
+                      'Character frequency rankings from Jun Da\'s Modern Chinese '
+                      'Character Frequency List, made available by ruddfawcett/hanziDB.csv.\n'
+                      'Licensed under the MIT License.',
+                    ),
+                    section(
+                      'HSK Vocabulary (旧版 2010)',
+                      'Level tags (旧HSK 1–4) follow the 2010 Hanban/CIE standard, '
+                      'covering ~535 multi-character words. Single characters and '
+                      'HSK 5–6 are not tagged. '
+                      'The 2021 revision (新HSK 3.0) is not included.\n'
+                      'Source: Hanban/CIE official HSK 2010 curriculum (public).',
+                    ),
+                    section(
+                      'Fonts — Gentium Plus',
+                      'Pinyin display font bundled with the app.\n'
+                      'Designed by SIL International, licensed under the '
+                      'SIL Open Font License 1.1 (OFL).\n'
+                      'https://software.sil.org/gentiumplus',
+                    ),
+                    section(
+                      'Fonts — Hanzi display',
+                      'Noto Sans SC, Noto Serif SC, Ma Shan Zheng, '
+                      'ZCOOL XiaoWei, Zhi Mang Xing — loaded via Google Fonts.\n'
+                      'All licensed under the SIL Open Font License 1.1 (OFL).',
+                    ),
+                    section(
+                      'Make Me A Hanzi — Stroke Graphics',
+                      'Stroke order graphics (graphics.txt) by Stroke Order Project '
+                      'contributors, packaged by Make Me A Hanzi.\n'
+                      'Licensed under the Arphic Public License.\n'
+                      'https://github.com/skishore/makemeahanzi',
+                    ),
+                    section(
+                      'Make Me A Hanzi — Dictionary',
+                      'Character decomposition and etymology data (dictionary.txt) '
+                      'by Make Me A Hanzi contributors.\n'
+                      'Licensed under Creative Commons Attribution-ShareAlike 4.0 '
+                      'International (CC BY-SA 4.0).\n'
+                      'https://github.com/skishore/makemeahanzi',
+                    ),
+                  ],
+                ),
+              ),
             ),
-            section(
-              'Hanzi Frequency Data',
-              'Character frequency rankings from Jun Da\'s Modern Chinese '
-              'Character Frequency List, made available by ruddfawcett/hanziDB.csv.\n'
-              'Licensed under the MIT License.',
-            ),
-            section(
-              'Fonts',
-              'Hanzi display fonts (Noto Sans SC, Noto Serif SC, Ma Shan Zheng) '
-              'and pinyin font (Gentium Plus) are served via Google Fonts.\n'
-              'All fonts are licensed under the SIL Open Font License 1.1 (OFL).',
-            ),
-            section(
-              'Stroke Order Images',
-              'Stroke order diagrams fetched from Wikimedia Commons '
-              '(upload.wikimedia.org). Individual files are licensed under '
-              'Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0) '
-              'or compatible licenses as stated on each file\'s page.',
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-      ],
     );
   }
 }

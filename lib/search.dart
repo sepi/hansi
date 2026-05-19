@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'dict_entry.dart';
 import 'hsk.dart';
 import 'pinyin_utils.dart';
@@ -31,7 +32,7 @@ Set<String> _tokenizeDef(String def) => def
     .toSet();
 
 /// Builds a [WordIndex] synchronously. Use [loadWordIndex] from
-/// cedict_loader.dart for the boot-time chunked version with progress.
+/// asset_loader.dart for the boot-time chunked version with progress.
 WordIndex buildWordIndex(List<DictEntry> entries) {
   final perDef = <List<Set<String>>>[];
   final combined = <Set<String>>[];
@@ -87,11 +88,13 @@ List<SearchResult> search(
   required WordIndex wordIndex,
 }) {
   if (rawQuery.isEmpty) return [];
-  if (_hasCjk(rawQuery)) {
-    return hanzi ? _sort(_searchHanzi(entries, rawQuery), freqMap) : [];
-  }
   final results = <SearchResult>[];
   final seen = <DictEntry>{};
+  if (hanzi) {
+    for (final r in _searchHanzi(entries, rawQuery)) {
+      if (seen.add(r.entry)) results.add(r);
+    }
+  }
   if (pinyin) {
     for (final r in _searchPinyin(entries, rawQuery)) {
       if (seen.add(r.entry)) results.add(r);
@@ -113,22 +116,31 @@ List<SearchResult> _searchHanzi(List<DictEntry> entries, String query) {
   final seen = <DictEntry>{};
   final results = <SearchResult>[];
 
-  // Pass 1: startsWith on simplified or traditional
+  // Tier 0: exact match — the character/word itself.
   for (final entry in entries) {
-    if (entry.simplified.startsWith(query) ||
-        entry.traditional.startsWith(query)) {
+    if (entry.simplified == query || entry.traditional == query) {
       seen.add(entry);
       results.add(SearchResult(entry: entry, tier: 0));
     }
   }
 
-  // Pass 2: contains
+  // Tier 1: starts with (non-exact).
+  for (final entry in entries) {
+    if (seen.contains(entry)) continue;
+    if (entry.simplified.startsWith(query) ||
+        entry.traditional.startsWith(query)) {
+      seen.add(entry);
+      results.add(SearchResult(entry: entry, tier: 1));
+    }
+  }
+
+  // Tier 2: contains anywhere (non-prefix).
   for (final entry in entries) {
     if (seen.contains(entry)) continue;
     if (entry.simplified.contains(query) ||
         entry.traditional.contains(query)) {
       seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 1));
+      results.add(SearchResult(entry: entry, tier: 2));
     }
   }
 
@@ -159,8 +171,10 @@ List<SearchResult> _searchPinyin(List<DictEntry> entries, String rawQuery) {
     containsMatch = (e) => e.contains(query);
   }
 
+  // CEDICT encodes ü as "u:". Normalise to bare "u" so that users typing
+  // "nuer", "nüer", or "lver" all find 女儿, 旅, etc.
   String flatten(DictEntry e) {
-    var s = e.pinyin.toLowerCase().replaceAll(' ', '');
+    var s = e.pinyin.toLowerCase().replaceAll(' ', '').replaceAll('u:', 'u');
     if (!hasTones) s = s.replaceAll(RegExp(r'[1-5]'), '');
     return s;
   }
@@ -239,13 +253,17 @@ int _freq(DictEntry e, Map<String, int> freqMap) =>
 int _hsk(DictEntry e) =>
     kHskLevel[e.simplified] ?? kHskLevel[e.traditional] ?? 99;
 
-// Sort priority: tier → HSK level → character-freq rank → first sub-def length.
-// HSK level ensures common vocabulary (e.g. 漂亮 HSK-1) beats rarer synonyms
-// regardless of CEDICT ordering or definition length.
+// Sort priority: tier → HSK level → entry length → character-freq rank →
+// first sub-def length.
+// Entry length ensures shorter matches beat longer compounds within the same
+// tier (e.g. startsWith tier: 好 beats 好吃 beats 好不容易).
+// HSK level ensures common vocabulary beats rarer synonyms of equal length.
 List<SearchResult> _sort(List<SearchResult> results, Map<String, int> freqMap) {
   results.sort((a, b) {
     final t = a.tier.compareTo(b.tier);
     if (t != 0) return t;
+    final len = a.entry.simplified.length.compareTo(b.entry.simplified.length);
+    if (len != 0) return len;
     final h = _hsk(a.entry).compareTo(_hsk(b.entry));
     if (h != 0) return h;
     final f = _freq(a.entry, freqMap).compareTo(_freq(b.entry, freqMap));
@@ -257,13 +275,15 @@ List<SearchResult> _sort(List<SearchResult> results, Map<String, int> freqMap) {
   return results;
 }
 
-bool _hasCjk(String s) => s.runes.any((r) =>
-    (r >= 0x4E00 && r <= 0x9FFF) || // CJK Unified Ideographs
-    (r >= 0x3400 && r <= 0x4DBF) || // Extension A
-    (r >= 0x20000 && r <= 0x2A6DF)); // Extension B
-
+// Normalise a raw query to the same form used by flatten():
+// convert Unicode tone marks → numbered, strip spaces and apostrophes,
+// and collapse ü/v → u to match CEDICT's u: normalisation in flatten().
 String _normalizeQuery(String raw) =>
-    toNumberedPinyin(raw).toLowerCase().replaceAll(' ', '');
+    toNumberedPinyin(raw)
+        .toLowerCase()
+        .replaceAll(RegExp(r"[' ]"), '')
+        .replaceAll('ü', 'u')
+        .replaceAll('v', 'u'); // v is a common ü substitute on many keyboards
 
 String _toRegexPattern(String query) => query
     .replaceAllMapped(RegExp(r'[.+*^${}()|[\]\\]'), (m) => '\\${m[0]}')

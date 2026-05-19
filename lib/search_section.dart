@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
 
-class SearchSection extends StatelessWidget {
+class SearchSection extends StatefulWidget {
   const SearchSection({
     super.key,
     required this.controller,
@@ -25,6 +26,19 @@ class SearchSection extends StatelessWidget {
   final ValueChanged<bool> onEnglishChanged;
 
   @override
+  State<SearchSection> createState() => _SearchSectionState();
+}
+
+class _SearchSectionState extends State<SearchSection> {
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.topCenter,
@@ -33,10 +47,11 @@ class SearchSection extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
+            valueListenable: widget.controller,
             builder: (_, value, _) => TextField(
-              controller: controller,
-              onChanged: onChanged,
+              controller: widget.controller,
+              focusNode: _focusNode,
+              onChanged: widget.onChanged,
               decoration: InputDecoration(
                 hintText: 'Search…',
                 prefixIcon: const Icon(Icons.search),
@@ -46,27 +61,28 @@ class SearchSection extends StatelessWidget {
                     SearchToggle(
                       label: '汉',
                       tooltip: 'Hanzi',
-                      active: searchHanzi,
-                      onTap: () => onHanziChanged(!searchHanzi),
+                      active: widget.searchHanzi,
+                      onTap: () => widget.onHanziChanged(!widget.searchHanzi),
                     ),
                     SearchToggle(
                       label: 'pī',
                       tooltip: 'Pinyin',
-                      active: searchPinyin,
-                      onTap: () => onPinyinChanged(!searchPinyin),
+                      active: widget.searchPinyin,
+                      onTap: () => widget.onPinyinChanged(!widget.searchPinyin),
                     ),
                     SearchToggle(
                       label: 'En',
                       tooltip: 'English',
-                      active: searchEnglish,
-                      onTap: () => onEnglishChanged(!searchEnglish),
+                      active: widget.searchEnglish,
+                      onTap: () => widget.onEnglishChanged(!widget.searchEnglish),
                     ),
                     if (value.text.isNotEmpty)
                       IconButton(
                         icon: const Icon(Icons.clear),
                         onPressed: () {
-                          controller.clear();
-                          onChanged('');
+                          widget.controller.clear();
+                          widget.onChanged('');
+                          _focusNode.requestFocus();
                         },
                       ),
                   ],

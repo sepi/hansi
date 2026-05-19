@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Converts between number-coded and Unicode pinyin.
 // toUnicodePinyin:  "ni3 hao3"  → "nǐ hǎo"
 // toNumberedPinyin: "nǐ hǎo"   → "ni3 hao3"

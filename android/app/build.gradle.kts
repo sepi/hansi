@@ -30,6 +30,10 @@ android {
         versionName = flutter.versionName
     }
 
+    lint {
+        disable += "Instantiatable"
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

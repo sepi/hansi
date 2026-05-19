@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // HSK 2010 standard vocabulary — levels 1–4 (~600 words, simplified only).
 // search.dart's _hsk() checks e.simplified first, then e.traditional, so
 // traditional-script entries are covered without duplicating data here.

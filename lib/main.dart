@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
 
-import 'cedict_loader.dart';
+import 'asset_loader.dart';
 import 'dict_entry.dart';
 import 'home_page.dart';
-import 'search.dart';
+import 'mma_entry.dart';
+import 'search_worker.dart';
 import 'theme.dart';
 
 void main() {
@@ -42,21 +44,48 @@ class DictLoader extends StatefulWidget {
 }
 
 class _DictLoaderState extends State<DictLoader> {
-  List<DictEntry>? _entries;
-  Map<String, int> _freqMap = const {};
-  WordIndex? _wordIndex;
+  SearchWorker? _worker;
+  Map<String, String> _strokeData = const {};
+  Map<String, MmaEntry> _mmaData = const {};
   String? _error;
 
   final Map<String, double> _progress = {
-    'Dictionary': 0,
-    'Frequency': 0,
-    'Index': 0,
+    'Loading dictionary': 0,
+    'Loading frequency data': 0,
+    'Building index': 0,
   };
+
+  bool _precached = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // Delay loading until after the first frame is painted so the loading
+    // screen is guaranteed to be visible before any heavy work begins.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Wait a few frames so the loading screen is visibly on-screen before
+      // any work starts. addPostFrameCallback alone fires before Android's
+      // SurfaceFlinger has composited the first frame to the display.
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (mounted) _load();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Kick off PNG decode before the first build so the logo is ready
+    // by the time the loading screen is painted to the screen.
+    if (!_precached) {
+      _precached = true;
+      precacheImage(const AssetImage('assets/hansi.png'), context);
+    }
+  }
+
+  @override
+  void dispose() {
+    _worker?.dispose();
+    super.dispose();
   }
 
   void _report(String name, double p) {
@@ -65,19 +94,50 @@ class _DictLoaderState extends State<DictLoader> {
 
   Future<void> _load() async {
     try {
-      final results = await Future.wait([
-        loadCedict((p) => _report('Dictionary', p)),
-        loadFrequency((p) => _report('Frequency', p)),
+      // Phase 1 — minimum data required to start searching.
+      final phase1 = await Future.wait([
+        loadCedict((p) => _report('Loading dictionary', p)),
+        loadFrequency((p) => _report('Loading frequency data', p)),
       ]);
-      final entries = results[0] as List<DictEntry>;
-      final freqMap = results[1] as Map<String, int>;
-      if (mounted) setState(() { _entries = entries; _freqMap = freqMap; });
+      final entries = phase1[0] as List<DictEntry>;
+      final freqMap = phase1[1] as Map<String, int>;
 
       final wordIndex =
-          await loadWordIndex(entries, (p) => _report('Index', p));
-      if (mounted) setState(() => _wordIndex = wordIndex);
+          await loadWordIndex(entries, (p) => _report('Building index', p));
+
+      // Spawn the persistent search isolate. Data is copied once here;
+      // every query after this sends only a short string across the boundary.
+      final worker = await SearchWorker.create(
+        entries: entries,
+        freqMap: freqMap,
+        wordIndex: wordIndex,
+      );
+      if (mounted) setState(() => _worker = worker);
+
+      // Phase 2 — stroke and etymology data loaded in the background.
+      // The home page is already visible; widgets degrade gracefully until
+      // this completes and the maps are swapped in.
+      _loadEnhancementData();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _loadEnhancementData() async {
+    try {
+      final results = await Future.wait([
+        loadGraphics((_) {}),
+        loadMmaDict((_) {}),
+      ]);
+      if (mounted) {
+        setState(() {
+          _strokeData = results[0] as Map<String, String>;
+          _mmaData = results[1] as Map<String, MmaEntry>;
+        });
+      }
+    } catch (_) {
+      // Enhancement data is non-critical; the app remains fully usable
+      // for searching even if this fails.
     }
   }
 
@@ -88,7 +148,7 @@ class _DictLoaderState extends State<DictLoader> {
         body: Center(child: Text('Failed to load dictionary:\n$_error')),
       );
     }
-    if (_entries == null || _wordIndex == null) {
+    if (_worker == null) {
       return Scaffold(
         body: Center(
           child: ConstrainedBox(
@@ -99,15 +159,7 @@ class _DictLoaderState extends State<DictLoader> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'hansi',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      color: kRed,
-                    ),
-                  ),
+                  Center(child: Image.asset('assets/hansi.png', height: 72)),
                   const SizedBox(height: 24),
                   ..._progress.entries.map(
                     (e) => _AssetProgressRow(name: e.key, progress: e.value),
@@ -120,7 +172,10 @@ class _DictLoaderState extends State<DictLoader> {
       );
     }
     return HomePage(
-        entries: _entries!, freqMap: _freqMap, wordIndex: _wordIndex!);
+      worker: _worker!,
+      strokeData: _strokeData,
+      mmaData: _mmaData,
+    );
   }
 }
 
@@ -141,7 +196,7 @@ class _AssetProgressRow extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(name, style: const TextStyle(fontSize: 13)),
+              Flexible(child: Text(name, style: const TextStyle(fontSize: 13))),
               Text(
                 done ? 'done' : '${(progress * 100).round()}%',
                 style: TextStyle(

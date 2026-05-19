@@ -1,28 +1,29 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'dict_entry.dart';
 import 'menu_sheet.dart';
+import 'mma_entry.dart';
 import 'results_table.dart';
 import 'search.dart';
 import 'search_history.dart';
 import 'search_section.dart';
+import 'search_worker.dart';
 import 'theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
-    required this.entries,
-    required this.freqMap,
-    required this.wordIndex,
+    required this.worker,
+    required this.strokeData,
+    required this.mmaData,
   });
 
-  final List<DictEntry> entries;
-  final Map<String, int> freqMap;
-  final WordIndex wordIndex;
+  final SearchWorker worker;
+  final Map<String, String> strokeData;
+  final Map<String, MmaEntry> mmaData;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -34,9 +35,10 @@ class _HomePageState extends State<HomePage> {
   bool _searchEnglish = true;
 
   HanziFont _font = HanziFont.sans;
-  AppTextSize _textSize = AppTextSize.medium;
+  AppTextSize _textSize = AppTextSize.md;
   bool _toneColors = false;
   bool _showTraditional = false;
+  double _strokeSpeed = 1.2;
 
   final _controller = TextEditingController();
   Timer? _debounce;
@@ -55,7 +57,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final fontIdx = prefs.getInt('font') ?? 0;
-    final sizeIdx = prefs.getInt('text_size') ?? 1;
+    final sizeIdx = prefs.getInt('text_size') ?? 2;
     if (mounted) {
       setState(() {
         _font = HanziFont.values[fontIdx.clamp(0, HanziFont.values.length - 1)];
@@ -63,6 +65,7 @@ class _HomePageState extends State<HomePage> {
             AppTextSize.values[sizeIdx.clamp(0, AppTextSize.values.length - 1)];
         _toneColors = prefs.getBool('tone_colors') ?? false;
         _showTraditional = prefs.getBool('show_traditional') ?? false;
+        _strokeSpeed = prefs.getDouble('stroke_speed') ?? 1.2;
         _history.addAll(prefs.getStringList('history') ?? []);
       });
     }
@@ -74,6 +77,7 @@ class _HomePageState extends State<HomePage> {
     await prefs.setInt('text_size', _textSize.index);
     await prefs.setBool('tone_colors', _toneColors);
     await prefs.setBool('show_traditional', _showTraditional);
+    await prefs.setDouble('stroke_speed', _strokeSpeed);
   }
 
   Future<void> _saveHistory() async {
@@ -101,25 +105,23 @@ class _HomePageState extends State<HomePage> {
     final id = ++_searchId;
 
     if (query.isEmpty) {
-      _searching = false;
       _historyTimer?.cancel();
-      setState(() => _results = []);
+      setState(() {
+        _searching = false;
+        _results = [];
+      });
       return;
     }
 
-    final results = await compute(searchIsolate, (
-      entries: widget.entries,
-      rawQuery: query,
+    final results = await widget.worker.search(
+      query,
       hanzi: _searchHanzi,
       pinyin: _searchPinyin,
       english: _searchEnglish,
-      freqMap: widget.freqMap,
-      wordIndex: widget.wordIndex,
-    ));
+    );
 
     if (id != _searchId) return;
 
-    _searching = false;
     _historyTimer?.cancel();
     if (results.isNotEmpty) {
       _historyTimer = Timer(const Duration(seconds: 3), () {
@@ -131,12 +133,16 @@ class _HomePageState extends State<HomePage> {
         _saveHistory();
       });
     }
-    setState(() => _results = results);
+    setState(() {
+      _searching = false;
+      _results = results;
+    });
   }
 
   void _openMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) => MenuSheet(
         font: _font,
         textSize: _textSize,
@@ -158,36 +164,34 @@ class _HomePageState extends State<HomePage> {
           setState(() => _showTraditional = v);
           _saveSettings();
         },
+        strokeSpeed: _strokeSpeed,
+        onStrokeSpeedChanged: (v) {
+          setState(() => _strokeSpeed = v);
+          _saveSettings();
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MediaQuery(
-      data: MediaQuery.of(context)
-          .copyWith(textScaler: TextScaler.linear(_textSize.scale)),
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: kRed,
-          foregroundColor: Colors.white,
-          title: const Text(
-            'hansi',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-              letterSpacing: 2,
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: kRed,
+        foregroundColor: Colors.white,
+        title: Image.asset('assets/hansi.png', height: 34),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => _openMenu(context),
+            tooltip: 'Menu',
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => _openMenu(context),
-              tooltip: 'Menu',
-            ),
-          ],
-        ),
-        body: Column(
+        ],
+      ),
+      body: MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(_textSize.scale)),
+        child: Column(
           children: [
             SearchSection(
               controller: _controller,
@@ -220,6 +224,13 @@ class _HomePageState extends State<HomePage> {
                   font: _font,
                   toneColors: _toneColors,
                   showTraditional: _showTraditional,
+                  strokeData: widget.strokeData,
+                  mmaData: widget.mmaData,
+                  strokeSpeed: _strokeSpeed,
+                  onSearch: (q) {
+                    _controller.text = q;
+                    _runSearch(q);
+                  },
                 ),
               )
             else if (_controller.text.trim().isNotEmpty)
@@ -247,3 +258,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+

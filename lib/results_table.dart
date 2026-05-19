@@ -1,14 +1,16 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import 'decomposition_tree.dart';
 import 'dict_entry.dart';
+import 'hsk.dart';
+import 'mma_entry.dart';
 import 'pinyin_utils.dart';
 import 'search.dart';
+import 'stroke_overlay.dart';
 import 'theme.dart';
+import 'tts_service.dart';
 
 class ResultsTable extends StatefulWidget {
   const ResultsTable({
@@ -17,12 +19,20 @@ class ResultsTable extends StatefulWidget {
     required this.font,
     required this.toneColors,
     required this.showTraditional,
+    required this.strokeData,
+    required this.mmaData,
+    required this.strokeSpeed,
+    required this.onSearch,
   });
 
   final List<SearchResult> results;
   final HanziFont font;
   final bool toneColors;
   final bool showTraditional;
+  final Map<String, String> strokeData;
+  final Map<String, MmaEntry> mmaData;
+  final double strokeSpeed;
+  final void Function(String query) onSearch;
 
   @override
   State<ResultsTable> createState() => _ResultsTableState();
@@ -56,6 +66,12 @@ class _ResultsTableState extends State<ResultsTable> {
       _visibleCount = _pageSize;
       if (_scrollController.hasClients) _scrollController.jumpTo(0);
     }
+    // When enhancement data arrives after the home page is already shown,
+    // force a rebuild so expanded rows pick up stroke and etymology data.
+    if ((old.strokeData.isEmpty && widget.strokeData.isNotEmpty) ||
+        (old.mmaData.isEmpty && widget.mmaData.isNotEmpty)) {
+      setState(() {});
+    }
   }
 
   void _onScroll() {
@@ -67,6 +83,52 @@ class _ResultsTableState extends State<ResultsTable> {
             (_visibleCount + _pageSize).clamp(0, widget.results.length);
       });
     }
+  }
+
+  void _showDecompositionDialog(
+      BuildContext context, String char, String pinyin) {
+    if (!widget.mmaData.containsKey(char)) return;
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(char,
+                        style: const TextStyle(fontSize: 38, height: 1.1)),
+                    const SizedBox(width: 12),
+                    Text(pinyin,
+                        style: TextStyle(fontFamily: 'GentiumPlus', fontSize: 18)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DecompositionTree(
+                  char: char,
+                  mmaData: widget.mmaData,
+                  onSearch: (q) {
+                    Navigator.of(context).pop();
+                    widget.onSearch(q);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -95,6 +157,8 @@ class _ResultsTableState extends State<ResultsTable> {
     final entry = widget.results[i].entry;
     final expanded = _expandedIndex == i;
     final hanzi = widget.showTraditional ? entry.traditional : entry.simplified;
+    final hskLvl = _hskLevel(entry);
+
     return InkWell(
       onTap: () => setState(() => _expandedIndex = expanded ? null : i),
       child: Column(
@@ -113,8 +177,8 @@ class _ResultsTableState extends State<ResultsTable> {
                       context,
                       hanzi,
                       entry.pinyin,
-                      GoogleFonts.getFont(widget.font.family, fontSize: 26),
-                      GoogleFonts.gentiumPlus(fontSize: 12),
+                      TextStyle(fontFamily: widget.font.family, fontSize: 26),
+                      TextStyle(fontFamily: 'GentiumPlus', fontSize: 12),
                       toneColors: widget.toneColors,
                     ),
                   ),
@@ -122,8 +186,27 @@ class _ResultsTableState extends State<ResultsTable> {
                 Expanded(
                   flex: 3,
                   child: Text(
-                    entry.definitions.join('\n'),
+                    _numberedDefs(entry.definitions),
                     style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                SizedBox(
+                  width: 74,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _TtsButton(
+                            text: hanzi,
+                            traditional: widget.showTraditional),
+                      ),
+                      Opacity(
+                        opacity: hskLvl != null ? 1.0 : 0.0,
+                        child: _HskChip(level: hskLvl ?? 1),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -157,87 +240,138 @@ class _ResultsTableState extends State<ResultsTable> {
     final pinyin = toUnicodePinyin(entry.pinyin);
     final defs = entry.definitions.join('; ');
     final all = '$hanzi\t$pinyin\t$defs';
+    final syllables = entry.pinyin.split(' ');
 
-    Widget btn(String label, String text) => OutlinedButton.icon(
+    Widget copyBtn(String label, String text) => OutlinedButton.icon(
           onPressed: () => _copy(context, text),
-          icon: const Icon(Icons.copy_outlined, size: 14),
+          icon: const Icon(Icons.copy_outlined, size: 12),
           label: Text(label),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            textStyle: const TextStyle(fontSize: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            textStyle: const TextStyle(fontSize: 11),
             visualDensity: VisualDensity.compact,
           ),
         );
 
-    final syllables = entry.pinyin.split(' ');
     return Column(
       children: [
         const Divider(height: 1, indent: 16, endIndent: 16),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 6,
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              btn('Hanzi', hanzi),
-              btn('Pinyin', pinyin),
-              btn('English', defs),
-              btn('All', all),
+              Expanded(
+                child: SequentialStrokeRow(
+                  key: ValueKey(widget.strokeData.isEmpty),
+                  chars: List.generate(hanzi.length, (i) => hanzi[i]),
+                  syllables: syllables,
+                  strokeData: widget.strokeData,
+                  mmaData: widget.mmaData,
+                  strokeSpeed: widget.strokeSpeed,
+                  onDecomposeTap: (i) {
+                    final c = hanzi[i];
+                    final syl = i < syllables.length ? syllables[i] : '';
+                    _showDecompositionDialog(context, c, toUnicodePinyin(syl));
+                  },
+                  onSearchTap: (i) => widget.onSearch(hanzi[i]),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  copyBtn('汉', hanzi),
+                  const SizedBox(height: 4),
+                  copyBtn('pī', pinyin),
+                  const SizedBox(height: 4),
+                  copyBtn('En', defs),
+                  const SizedBox(height: 4),
+                  copyBtn('All', all),
+                ],
+              ),
             ],
           ),
         ),
-        ...List.generate(hanzi.length, (i) {
-          final c = hanzi[i];
-          final syllable = i < syllables.length ? syllables[i] : '';
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                hanziWidget(
-                  context,
-                  c,
-                  syllable,
-                  GoogleFonts.getFont(widget.font.family, fontSize: 40),
-                  toneColors: widget.toneColors,
-                ),
-                const SizedBox(width: 24),
-                Expanded(child: StrokeOrderImage(char: c)),
-              ],
-            ),
-          );
-        }),
       ],
     );
   }
 }
 
-String _strokeOrderUrl(String char) {
-  final filename = '$char-bw.png';
-  final hash = md5.convert(utf8.encode(filename)).toString();
-  return 'https://upload.wikimedia.org/wikipedia/commons'
-      '/${hash[0]}/${hash.substring(0, 2)}/${Uri.encodeComponent(filename)}';
-}
+// ---------------------------------------------------------------------------
+// TTS button
+// ---------------------------------------------------------------------------
 
-class StrokeOrderImage extends StatelessWidget {
-  const StrokeOrderImage({super.key, required this.char});
-
-  final String char;
+class _TtsButton extends StatelessWidget {
+  const _TtsButton({required this.text, required this.traditional});
+  final String text;
+  final bool traditional;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 220),
-      child: Image.network(
-        _strokeOrderUrl(char),
-        width: double.infinity,
-        fit: BoxFit.contain,
-        alignment: Alignment.centerLeft,
-        loadingBuilder: (_, child, progress) =>
-            progress == null ? child : const Center(child: CircularProgressIndicator()),
-        errorBuilder: (_, _, _) =>
-            const Text('—', style: TextStyle(color: Colors.grey)),
+    return IconButton(
+      icon: const Icon(Icons.volume_up_outlined),
+      iconSize: 18,
+      color: Colors.grey.shade500,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 28),
+      tooltip: 'Listen',
+      onPressed: () => TtsService.instance.speak(text, traditional: traditional),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HSK level chip
+// ---------------------------------------------------------------------------
+
+int? _hskLevel(DictEntry e) =>
+    kHskLevel[e.simplified] ?? kHskLevel[e.traditional];
+
+class _HskChip extends StatelessWidget {
+  const _HskChip({required this.level});
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Old HSK standard (2010, levels 1–4)',
+      child: Container(
+        margin: const EdgeInsets.only(left: 6, top: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFBBDEFB),  // blue.shade100
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          '旧HSK $level',
+          softWrap: false,
+          overflow: TextOverflow.clip,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF1565C0),  // blue.shade800
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
+        ),
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Definition numbering
+// ---------------------------------------------------------------------------
+
+// ①–⑳ live at U+2460–U+2473; ㉑–㉟ at U+3251–U+325F.
+String _circled(int n) {
+  if (n >= 1 && n <= 20) return String.fromCharCode(0x245F + n);
+  if (n >= 21 && n <= 35) return String.fromCharCode(0x3250 + n);
+  return '$n.';
+}
+
+String _numberedDefs(List<String> defs) => List.generate(
+      defs.length,
+      (i) => '${_circled(i + 1)} ${defs[i]}',
+    ).join('\n');
+

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
 
 import 'pinyin_utils.dart';
@@ -5,7 +6,9 @@ import 'pinyin_utils.dart';
 enum HanziFont {
   sans('Noto Sans SC', 'Sans (Hei 黑)'),
   serif('Noto Serif SC', 'Serif (Song 宋)'),
-  handwriting('Ma Shan Zheng', 'Handwriting (Kai 楷)');
+  handwriting('Ma Shan Zheng', 'Regular (Kai 楷)'),
+  wei('ZCOOL XiaoWei', 'Decorative (Wei 魏)'),
+  xing('Zhi Mang Xing', 'Brush (Xing 行)');
 
   const HanziFont(this.family, this.label);
   final String family;
@@ -13,9 +16,11 @@ enum HanziFont {
 }
 
 enum AppTextSize {
-  small(0.8, 'Small'),
-  medium(1.0, 'Medium'),
-  large(1.5, 'Large');
+  xs(0.8, 'XS'),
+  sm(0.9, 'S'),
+  md(1.0, 'M'),
+  lg(1.2, 'L'),
+  xl(1.5, 'XL');
 
   const AppTextSize(this.scale, this.label);
   final double scale;
@@ -47,6 +52,7 @@ Widget hanziPinyinGrid(
   TextStyle hanziStyle,
   TextStyle pinyinStyle, {
   required bool toneColors,
+  void Function(int index)? onCharTap,
 }) {
   final syllables = pinyin.split(' ');
   return Wrap(
@@ -55,7 +61,7 @@ Widget hanziPinyinGrid(
     children: List.generate(hanzi.length, (i) {
       final syl = i < syllables.length ? syllables[i] : '';
       final color = toneColors ? kToneColors[toneOf(syl) - 1] : null;
-      return Padding(
+      Widget cell = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -66,6 +72,15 @@ Widget hanziPinyinGrid(
           ],
         ),
       );
+      if (onCharTap != null) {
+        final idx = i;
+        cell = GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onCharTap(idx),
+          child: cell,
+        );
+      }
+      return cell;
     }),
   );
 }
