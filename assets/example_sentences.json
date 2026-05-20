@@ -1,0 +1,102 @@
+[
+  {
+    "char": "的",
+    "sentences": [
+      { "level": 1, "zh": "这是我的书。", "pinyin": "Zhè shì wǒ de shū.", "en": "This is my book." },
+      { "level": 2, "zh": "我妈妈做的菜很好吃。", "pinyin": "Wǒ māma zuò de cài hěn hǎochī.", "en": "The food my mom cooks is delicious." },
+      { "level": 3, "zh": "他买的那本书真的很有意思。", "pinyin": "Tā mǎi de nà běn shū zhēn de hěn yǒu yìsi.", "en": "The book he bought is really interesting." },
+      { "level": 4, "zh": "他昨天说的话让我想了很久。", "pinyin": "Tā zuótiān shuō de huà ràng wǒ xiǎng le hěn jiǔ.", "en": "What he said yesterday made me think for a long time." },
+      { "level": 5, "zh": "他那种不在乎的态度，真的让人很无奈。", "pinyin": "Tā nà zhǒng bù zàihu de tàidu, zhēn de ràng rén hěn wúnài.", "en": "His couldn't-care-less attitude is genuinely frustrating." }
+    ]
+  },
+  {
+    "char": "一",
+    "sentences": [
+      { "level": 1, "zh": "我有一个苹果。", "pinyin": "Wǒ yǒu yī ge píngguǒ.", "en": "I have one apple." },
+      { "level": 2, "zh": "我每天早上喝一杯咖啡。", "pinyin": "Wǒ měi tiān zǎoshang hē yī bēi kāfēi.", "en": "I have a cup of coffee every morning." },
+      { "level": 3, "zh": "一个人去旅行也很有意思。", "pinyin": "Yī ge rén qù lǚxíng yě hěn yǒu yìsi.", "en": "Travelling alone can be really fun too." },
+      { "level": 4, "zh": "他们一见面就聊了很长时间。", "pinyin": "Tāmen yī jiànmiàn jiù liáo le hěn cháng shíjiān.", "en": "The moment they met, they talked for ages." },
+      { "level": 5, "zh": "他一开口，大家就知道他是南方人。", "pinyin": "Tā yī kāikǒu, dàjiā jiù zhīdào tā shì nánfāng rén.", "en": "The moment he spoke, everyone could tell he was from the south." }
+    ]
+  },
+  {
+    "char": "是",
+    "sentences": [
+      { "level": 1, "zh": "他是老师。", "pinyin": "Tā shì lǎoshī.", "en": "He is a teacher." },
+      { "level": 2, "zh": "今天是我的生日，我很高兴。", "pinyin": "Jīntiān shì wǒ de shēngrì, wǒ hěn gāoxìng.", "en": "Today is my birthday and I'm very happy." },
+      { "level": 3, "zh": "问题是我们的时间不够。", "pinyin": "Wèntí shì wǒmen de shíjiān bùgòu.", "en": "The problem is we don't have enough time." },
+      { "level": 4, "zh": "他是那种说到做到的人。", "pinyin": "Tā shì nà zhǒng shuō dào zuò dào de rén.", "en": "He is the kind of person who does what he says." },
+      { "level": 5, "zh": "能不能成功，关键是你有没有坚持下去的决心。", "pinyin": "Néng bu néng chénggōng, guānjiàn shì nǐ yǒu méiyǒu jiānchí xiàqù de juéxīn.", "en": "Whether you succeed or not comes down to whether you have the determination to keep going." }
+    ]
+  },
+  {
+    "char": "不",
+    "sentences": [
+      { "level": 1, "zh": "我不喝咖啡。", "pinyin": "Wǒ bù hē kāfēi.", "en": "I don't drink coffee." },
+      { "level": 2, "zh": "他今天不舒服，不去上课了。", "pinyin": "Tā jīntiān bù shūfu, bù qù shàngkè le.", "en": "He doesn't feel well today and isn't going to class." },
+      { "level": 3, "zh": "这件事不太容易，但我会试试。", "pinyin": "Zhè jiàn shì bù tài róngyì, dàn wǒ huì shì shi.", "en": "This isn't very easy, but I'll give it a go." },
+      { "level": 4, "zh": "不管多忙，他每天都会给家人打电话。", "pinyin": "Bùguǎn duō máng, tā měi tiān dōu huì gěi jiārén dǎ diànhuà.", "en": "No matter how busy he is, he calls his family every day." },
+      { "level": 5, "zh": "他不是不明白，只是不想面对现实而已。", "pinyin": "Tā bù shì bù míngbai, zhǐshì bù xiǎng miànduì xiànshí éryǐ.", "en": "It's not that he doesn't understand — he just doesn't want to face reality." }
+    ]
+  },
+  {
+    "char": "了",
+    "sentences": [
+      { "level": 1, "zh": "我吃了一个苹果。", "pinyin": "Wǒ chī le yī ge píngguǒ.", "en": "I ate an apple." },
+      { "level": 2, "zh": "他学了两年中文了。", "pinyin": "Tā xué le liǎng nián Zhōngwén le.", "en": "He has been studying Chinese for two years now." },
+      { "level": 3, "zh": "下课了，我们去吃饭吧。", "pinyin": "Xià kè le, wǒmen qù chīfàn ba.", "en": "Class is over — let's go and eat." },
+      { "level": 4, "zh": "他工作了一整天，回家就睡着了。", "pinyin": "Tā gōngzuò le yī zhěng tiān, huí jiā jiù shuìzháo le.", "en": "He worked the whole day and fell asleep as soon as he got home." },
+      { "level": 5, "zh": "经历了这些事，她对很多东西的看法都变了。", "pinyin": "Jīnglì le zhèxiē shì, tā duì hěn duō dōngxi de kànfǎ dōu biàn le.", "en": "After going through all this, her perspective on a lot of things has shifted." }
+    ]
+  },
+  {
+    "char": "在",
+    "sentences": [
+      { "level": 1, "zh": "我在家学习。", "pinyin": "Wǒ zài jiā xuéxí.", "en": "I'm studying at home." },
+      { "level": 2, "zh": "他在图书馆看书。", "pinyin": "Tā zài túshūguǎn kànshū.", "en": "He is reading at the library." },
+      { "level": 3, "zh": "我们在讨论这个问题的时候，他进来了。", "pinyin": "Wǒmen zài tǎolùn zhège wèntí de shíhou, tā jìnlái le.", "en": "He walked in while we were discussing the problem." },
+      { "level": 4, "zh": "他在国外住了几年，反而更想回家了。", "pinyin": "Tā zài guówài zhù le jǐ nián, fǎn'ér gèng xiǎng huí jiā le.", "en": "After living abroad for a few years, he actually misses home even more." },
+      { "level": 5, "zh": "在这个竞争激烈的时代，保持平常心很不容易。", "pinyin": "Zài zhège jìngzhēng jīliè de shídài, bǎochí píngcháng xīn hěn bù róngyì.", "en": "In this intensely competitive era, it's not easy to keep a level head." }
+    ]
+  },
+  {
+    "char": "人",
+    "sentences": [
+      { "level": 1, "zh": "那个人是我的老师。", "pinyin": "Nà ge rén shì wǒ de lǎoshī.", "en": "That person is my teacher." },
+      { "level": 2, "zh": "这里的人都很友好。", "pinyin": "Zhèlǐ de rén dōu hěn yǒuhǎo.", "en": "The people here are all very friendly." },
+      { "level": 3, "zh": "每个人都有自己的烦恼。", "pinyin": "Měi ge rén dōu yǒu zìjǐ de fánnǎo.", "en": "Everyone has their own worries." },
+      { "level": 4, "zh": "他是个做事很认真的人，大家都信任他。", "pinyin": "Tā shì ge zuòshì hěn rènzhēn de rén, dàjiā dōu xìnrèn tā.", "en": "He is someone who takes everything seriously, and everyone trusts him." },
+      { "level": 5, "zh": "一个成熟的人，不会轻易被别人的话所影响。", "pinyin": "Yī ge chéngshú de rén, bù huì qīngyì bèi biéren de huà suǒ yǐngxiǎng.", "en": "A mature person won't easily be swayed by what others say." }
+    ]
+  },
+  {
+    "char": "有",
+    "sentences": [
+      { "level": 1, "zh": "我有一个姐姐。", "pinyin": "Wǒ yǒu yī ge jiějie.", "en": "I have an older sister." },
+      { "level": 2, "zh": "这个城市有很多好吃的。", "pinyin": "Zhège chéngshì yǒu hěn duō hǎochī de.", "en": "This city has so much good food." },
+      { "level": 3, "zh": "你有没有时间帮我一下？", "pinyin": "Nǐ yǒu méiyǒu shíjiān bāng wǒ yīxià?", "en": "Do you have a moment to help me out?" },
+      { "level": 4, "zh": "有些话说出来，反而会更麻烦。", "pinyin": "Yǒu xiē huà shuō chūlai, fǎn'ér huì gèng máfan.", "en": "Some things are better left unsaid — saying them just makes things worse." },
+      { "level": 5, "zh": "有能力是一回事，愿不愿意去做又是另一回事。", "pinyin": "Yǒu nénglì shì yī huí shì, yuàn bu yuànyì qù zuò yòu shì lìng yī huí shì.", "en": "Having the ability is one thing; actually being willing to do it is quite another." }
+    ]
+  },
+  {
+    "char": "我",
+    "sentences": [
+      { "level": 1, "zh": "我是学生。", "pinyin": "Wǒ shì xuésheng.", "en": "I am a student." },
+      { "level": 2, "zh": "我今天有点累，想早点睡。", "pinyin": "Wǒ jīntiān yǒudiǎn lèi, xiǎng zǎodiǎn shuì.", "en": "I'm a bit tired today and want to go to bed early." },
+      { "level": 3, "zh": "我觉得这个方法比较简单。", "pinyin": "Wǒ juéde zhège fāngfǎ bǐjiào jiǎndān.", "en": "I think this method is pretty straightforward." },
+      { "level": 4, "zh": "我一直以为他会来，结果他没来。", "pinyin": "Wǒ yīzhí yǐwéi tā huì lái, jiéguǒ tā méi lái.", "en": "I kept thinking he would show up, but in the end he didn't." },
+      { "level": 5, "zh": "我不是不想帮你，只是现在真的没有能力。", "pinyin": "Wǒ bù shì bù xiǎng bāng nǐ, zhǐshì xiànzài zhēn de méiyǒu nénglì.", "en": "It's not that I don't want to help you — I genuinely can't right now." }
+    ]
+  },
+  {
+    "char": "他",
+    "sentences": [
+      { "level": 1, "zh": "他是我的朋友。", "pinyin": "Tā shì wǒ de péngyǒu.", "en": "He is my friend." },
+      { "level": 2, "zh": "他每天早上去跑步。", "pinyin": "Tā měi tiān zǎoshang qù pǎobù.", "en": "He goes running every morning." },
+      { "level": 3, "zh": "他虽然很忙，但还是来了。", "pinyin": "Tā suīrán hěn máng, dàn háishi lái le.", "en": "Even though he was really busy, he still came." },
+      { "level": 4, "zh": "他说话不多，但每次说的都很有道理。", "pinyin": "Tā shuōhuà bù duō, dàn měi cì shuō de dōu hěn yǒu dàolǐ.", "en": "He doesn't say much, but whenever he does it always makes sense." },
+      { "level": 5, "zh": "他从不抱怨，遇到什么事都能平静地面对。", "pinyin": "Tā cóng bù bàoyuàn, yùdào shénme shì dōu néng píngjìng de miànduì.", "en": "He never complains and faces whatever comes his way with calm." }
+    ]
+  }
+]

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Clipboard + PlatformException
 
+import 'anki_service.dart';
 import 'decomposition_tree.dart';
 import 'dict_entry.dart';
 import 'hsk.dart';
@@ -23,6 +24,7 @@ class ResultsTable extends StatefulWidget {
     required this.mmaData,
     required this.strokeSpeed,
     required this.onSearch,
+    required this.ankiInstalled,
   });
 
   final List<SearchResult> results;
@@ -33,6 +35,7 @@ class ResultsTable extends StatefulWidget {
   final Map<String, MmaEntry> mmaData;
   final double strokeSpeed;
   final void Function(String query) onSearch;
+  final bool ankiInstalled;
 
   @override
   State<ResultsTable> createState() => _ResultsTableState();
@@ -42,7 +45,6 @@ class _ResultsTableState extends State<ResultsTable> {
   int? _expandedIndex;
   int _visibleCount = _pageSize;
   final _scrollController = ScrollController();
-
   static const _pageSize = 30;
   static const _padding = EdgeInsets.symmetric(horizontal: 16, vertical: 10);
 
@@ -158,6 +160,8 @@ class _ResultsTableState extends State<ResultsTable> {
     final expanded = _expandedIndex == i;
     final hanzi = widget.showTraditional ? entry.traditional : entry.simplified;
     final hskLvl = _hskLevel(entry);
+    final pinyin = toUnicodePinyin(entry.pinyin);
+    final english = entry.definitions.join('; ');
 
     return InkWell(
       onTap: () => setState(() => _expandedIndex = expanded ? null : i),
@@ -196,11 +200,19 @@ class _ResultsTableState extends State<ResultsTable> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: _TtsButton(
-                            text: hanzi,
-                            traditional: widget.showTraditional),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (widget.ankiInstalled)
+                            _AnkiButton(
+                              hanzi: hanzi,
+                              pinyin: pinyin,
+                              english: english,
+                            ),
+                          _TtsButton(
+                              text: hanzi,
+                              traditional: widget.showTraditional),
+                        ],
                       ),
                       Opacity(
                         opacity: hskLvl != null ? 1.0 : 0.0,
@@ -311,12 +323,65 @@ class _TtsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.volume_up_outlined),
-      iconSize: 18,
+      iconSize: 22,
       color: Colors.grey.shade500,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 28),
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 30),
       tooltip: 'Listen',
       onPressed: () => TtsService.instance.speak(text, traditional: traditional),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anki button
+// ---------------------------------------------------------------------------
+
+class _AnkiButton extends StatelessWidget {
+  const _AnkiButton({
+    required this.hanzi,
+    required this.pinyin,
+    required this.english,
+  });
+  final String hanzi;
+  final String pinyin;
+  final String english;
+
+  void _snack(BuildContext context, String msg, {int seconds = 2}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      duration: Duration(seconds: seconds),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.send),
+      iconSize: 20,
+      color: Colors.grey.shade500,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 30),
+      tooltip: 'Add to AnkiDroid',
+      onPressed: () async {
+        final granted = await ensureAnkiPermission(context);
+        if (!context.mounted) return;
+        if (!granted) {
+          _snack(context,
+              'Permission denied — grant it in Settings → Apps → Hansi → Permissions',
+              seconds: 5);
+          return;
+        }
+        try {
+          await AnkiService.instance.addNote(hanzi, pinyin, english);
+          if (context.mounted) _snack(context, 'Added to AnkiDroid');
+        } on PlatformException catch (e) {
+          if (context.mounted) {
+            _snack(context, e.message ?? 'Failed to add note', seconds: 5);
+          }
+        }
+      },
     );
   }
 }

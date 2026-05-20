@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:stroke_order_animator/stroke_order_animator.dart';
 
@@ -214,6 +216,7 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
   late final List<StrokeOrderAnimationController?> _controllers;
   int _current = 0;
   bool _advancing = false;
+  Timer? _pendingTimer;
 
   @override
   void initState() {
@@ -228,7 +231,8 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
         }(),
     ];
     if (_controllers.any((c) => c != null)) {
-      Future.delayed(const Duration(milliseconds: 400), () {
+      _pendingTimer = Timer(const Duration(milliseconds: 400), () {
+        _pendingTimer = null;
         if (mounted) _playFrom(0);
       });
     }
@@ -236,6 +240,7 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
 
   @override
   void dispose() {
+    _pendingTimer?.cancel();
     for (final ctrl in _controllers) {
       ctrl?.removeListener(_onCtrlChanged);
       ctrl?.dispose();
@@ -245,16 +250,33 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
 
   void _playFrom(int idx) {
     if (!mounted) return;
-    // Reset controllers from idx onward so the visual starts clean.
+    _pendingTimer?.cancel();
+    _pendingTimer = null;
+    // Chars before idx → end state (all strokes visible, stopped).
+    for (int i = 0; i < idx; i++) {
+      final ctrl = _controllers[i];
+      if (ctrl == null) continue;
+      ctrl.removeListener(_onCtrlChanged);
+      ctrl.stopAnimation();
+      _advanceToEnd(ctrl);
+    }
+    // Chars from idx onward → start state (blank, waiting).
     for (int i = idx; i < _controllers.length; i++) {
       final ctrl = _controllers[i];
       if (ctrl == null) continue;
       ctrl.removeListener(_onCtrlChanged);
       ctrl.stopAnimation();
-      while (ctrl.currentStroke > 0) { ctrl.previousStroke(); }
+      while (ctrl.currentStroke > 0) ctrl.previousStroke();
     }
     setState(() => _current = idx);
     _startAt(idx);
+  }
+
+  void _advanceToEnd(StrokeOrderAnimationController ctrl) {
+    final total = ctrl.strokeOrder.nStrokes;
+    while (ctrl.currentStroke < total) {
+      ctrl.nextStroke();
+    }
   }
 
   void _startAt(int idx) {
@@ -265,7 +287,8 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
     final ctrl = _controllers[idx];
     if (ctrl == null) {
       // No data for this character — skip after a brief delay.
-      Future.delayed(const Duration(milliseconds: 150), () {
+      _pendingTimer = Timer(const Duration(milliseconds: 150), () {
+        _pendingTimer = null;
         if (mounted) _advance();
       });
       return;
@@ -282,7 +305,8 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
     if (!ctrl.isAnimating && ctrl.currentStroke > 0) {
       _advancing = true;
       ctrl.removeListener(_onCtrlChanged);
-      Future.delayed(const Duration(milliseconds: 300), () {
+      _pendingTimer = Timer(const Duration(milliseconds: 300), () {
+        _pendingTimer = null;
         if (mounted) _advance();
       });
     }
@@ -292,7 +316,8 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
     final next = _current + 1;
     if (next >= widget.chars.length) {
       // All done — pause then loop from the start.
-      Future.delayed(const Duration(milliseconds: 700), () {
+      _pendingTimer = Timer(const Duration(milliseconds: 700), () {
+        _pendingTimer = null;
         if (mounted) _playFrom(0);
       });
     } else {

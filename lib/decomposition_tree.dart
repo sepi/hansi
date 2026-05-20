@@ -231,7 +231,7 @@ class _Chip extends StatelessWidget {
     final role = d.role;
     final Color borderColor =
         role != null ? _roleColor(role) : Colors.grey.shade300;
-    final Color bg = isRoot ? kRed.withOpacity(0.07) : Colors.grey.shade50;
+    final Color bg = isRoot ? kRed.withValues(alpha: 0.07) : Colors.grey.shade50;
 
     return Container(
       width: _kW,
@@ -283,17 +283,13 @@ class _Chip extends StatelessWidget {
           if (onSearch != null)
             Positioned(
               bottom: 2,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: IconButton(
-                  icon: Icon(Icons.search, color: Colors.grey.shade600),
-                  iconSize: 14,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 20),
-                  onPressed: onSearch,
-                ),
+              right: 2,
+              child: IconButton(
+                icon: Icon(Icons.search, color: Colors.grey.shade600),
+                iconSize: 14,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                onPressed: onSearch,
               ),
             ),
         ],

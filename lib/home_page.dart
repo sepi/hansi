@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'anki_service.dart';
 import 'menu_sheet.dart';
 import 'mma_entry.dart';
 import 'results_table.dart';
@@ -40,6 +41,8 @@ class _HomePageState extends State<HomePage> {
   bool _showTraditional = false;
   double _strokeSpeed = 1.2;
 
+  bool _ankiInstalled = false;
+
   final _controller = TextEditingController();
   Timer? _debounce;
   Timer? _historyTimer;
@@ -52,6 +55,9 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadSettings();
+    AnkiService.instance.isInstalled.then((v) {
+      if (mounted) setState(() => _ankiInstalled = v);
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -169,6 +175,7 @@ class _HomePageState extends State<HomePage> {
           setState(() => _strokeSpeed = v);
           _saveSettings();
         },
+        ankiInstalled: _ankiInstalled,
       ),
     );
   }
@@ -231,6 +238,7 @@ class _HomePageState extends State<HomePage> {
                     _controller.text = q;
                     _runSearch(q);
                   },
+                  ankiInstalled: _ankiInstalled,
                 ),
               )
             else if (_controller.text.trim().isNotEmpty)

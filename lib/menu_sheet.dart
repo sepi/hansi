@@ -16,6 +16,7 @@ class MenuSheet extends StatefulWidget {
     required this.onToneColorsChanged,
     required this.onTraditionalChanged,
     required this.onStrokeSpeedChanged,
+    required this.ankiInstalled,
   });
 
   final HanziFont font;
@@ -28,6 +29,7 @@ class MenuSheet extends StatefulWidget {
   final ValueChanged<bool> onToneColorsChanged;
   final ValueChanged<bool> onTraditionalChanged;
   final ValueChanged<double> onStrokeSpeedChanged;
+  final bool ankiInstalled;
 
   @override
   State<MenuSheet> createState() => _MenuSheetState();
