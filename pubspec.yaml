@@ -66,9 +66,10 @@ flutter:
     - assets/hansi.png
     - assets/hansi-face.png
     - assets/cedict.txt.gz
-    - assets/hanzi_freq.tsv.gz
+    - assets/word_freq.tsv.gz
     - assets/graphics.txt.gz
     - assets/mma_dict.txt.gz
+    - assets/example_sentences.json
 
   fonts:
     - family: GentiumPlus

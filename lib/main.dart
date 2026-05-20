@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'asset_loader.dart';
 import 'dict_entry.dart';
+import 'example_sentence.dart';
 import 'home_page.dart';
 import 'mma_entry.dart';
 import 'search_worker.dart';
@@ -47,6 +48,7 @@ class _DictLoaderState extends State<DictLoader> {
   SearchWorker? _worker;
   Map<String, String> _strokeData = const {};
   Map<String, MmaEntry> _mmaData = const {};
+  SentenceData _sentenceData = SentenceData.empty;
   String? _error;
 
   final Map<String, double> _progress = {
@@ -128,11 +130,13 @@ class _DictLoaderState extends State<DictLoader> {
       final results = await Future.wait([
         loadGraphics((_) {}),
         loadMmaDict((_) {}),
+        loadExampleSentences((_) {}),
       ]);
       if (mounted) {
         setState(() {
           _strokeData = results[0] as Map<String, String>;
           _mmaData = results[1] as Map<String, MmaEntry>;
+          _sentenceData = SentenceData(results[2] as List<ExampleSentence>);
         });
       }
     } catch (_) {
@@ -175,6 +179,7 @@ class _DictLoaderState extends State<DictLoader> {
       worker: _worker!,
       strokeData: _strokeData,
       mmaData: _mmaData,
+      sentenceData: _sentenceData,
     );
   }
 }

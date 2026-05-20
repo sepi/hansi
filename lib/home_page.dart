@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'anki_service.dart';
+import 'example_sentence.dart';
 import 'menu_sheet.dart';
 import 'mma_entry.dart';
 import 'results_table.dart';
@@ -20,11 +21,13 @@ class HomePage extends StatefulWidget {
     required this.worker,
     required this.strokeData,
     required this.mmaData,
+    required this.sentenceData,
   });
 
   final SearchWorker worker;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
+  final SentenceData sentenceData;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -239,6 +242,7 @@ class _HomePageState extends State<HomePage> {
                     _runSearch(q);
                   },
                   ankiInstalled: _ankiInstalled,
+                  sentenceData: widget.sentenceData,
                 ),
               )
             else if (_controller.text.trim().isNotEmpty)

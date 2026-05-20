@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'cedict_parser.dart';
 import 'dict_entry.dart';
+import 'example_sentence.dart';
 import 'mma_entry.dart';
 import 'search.dart';
 
@@ -37,7 +38,7 @@ Future<List<DictEntry>> loadCedict(ProgressCallback onProgress) async {
 }
 
 Future<Map<String, int>> loadFrequency(ProgressCallback onProgress) async {
-  final byteData = await rootBundle.load('assets/hanzi_freq.tsv.gz');
+  final byteData = await rootBundle.load('assets/word_freq.tsv.gz');
   final compressed = byteData.buffer.asUint8List(
     byteData.offsetInBytes,
     byteData.lengthInBytes,
@@ -158,6 +159,18 @@ Future<Map<String, MmaEntry>> loadMmaDict(ProgressCallback onProgress) async {
   }
 
   return map;
+}
+
+Future<List<ExampleSentence>> loadExampleSentences(
+    ProgressCallback onProgress) async {
+  final text = await rootBundle.loadString('assets/example_sentences.json');
+  onProgress(0.5);
+  final raw = jsonDecode(text) as List<dynamic>;
+  final sentences = raw
+      .map((j) => ExampleSentence.fromJson(j as Map<String, dynamic>))
+      .toList();
+  onProgress(1.0);
+  return sentences;
 }
 
 Set<String> _tokenizeDef(String def) => def

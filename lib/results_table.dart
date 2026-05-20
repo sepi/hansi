@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'; // Clipboard + PlatformException
 
 import 'anki_service.dart';
 import 'decomposition_tree.dart';
+import 'example_sentence.dart';
 import 'dict_entry.dart';
 import 'hsk.dart';
 import 'mma_entry.dart';
@@ -25,6 +26,7 @@ class ResultsTable extends StatefulWidget {
     required this.strokeSpeed,
     required this.onSearch,
     required this.ankiInstalled,
+    required this.sentenceData,
   });
 
   final List<SearchResult> results;
@@ -36,6 +38,7 @@ class ResultsTable extends StatefulWidget {
   final double strokeSpeed;
   final void Function(String query) onSearch;
   final bool ankiInstalled;
+  final SentenceData sentenceData;
 
   @override
   State<ResultsTable> createState() => _ResultsTableState();
@@ -305,6 +308,11 @@ class _ResultsTableState extends State<ResultsTable> {
             ],
           ),
         ),
+        _SentencesSection(
+          word: hanzi,
+          sentenceData: widget.sentenceData,
+          onSearch: widget.onSearch,
+        ),
       ],
     );
   }
@@ -323,10 +331,10 @@ class _TtsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.volume_up_outlined),
-      iconSize: 22,
+      iconSize: 26,
       color: Colors.grey.shade500,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 26, minHeight: 30),
+      padding: const EdgeInsets.only(left: 6),
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
       tooltip: 'Listen',
       onPressed: () => TtsService.instance.speak(text, traditional: traditional),
     );
@@ -420,6 +428,190 @@ class _HskChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Example sentences section
+// ---------------------------------------------------------------------------
+
+class _SentencesSection extends StatefulWidget {
+  const _SentencesSection({
+    required this.word,
+    required this.sentenceData,
+    required this.onSearch,
+  });
+  final String word;
+  final SentenceData sentenceData;
+  final void Function(String) onSearch;
+
+  @override
+  State<_SentencesSection> createState() => _SentencesSectionState();
+}
+
+class _SentencesSectionState extends State<_SentencesSection> {
+  final Set<int> _pinyinRevealed = {};
+  final Set<int> _englishRevealed = {};
+
+  @override
+  void didUpdateWidget(_SentencesSection old) {
+    super.didUpdateWidget(old);
+    if (old.word != widget.word) {
+      _pinyinRevealed.clear();
+      _englishRevealed.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final target = widget.sentenceData.targetFor(widget.word);
+    final incidental = widget.sentenceData.incidentalFor(widget.word);
+    if (target.isEmpty && incidental.isEmpty) return const SizedBox.shrink();
+
+    final outline = Theme.of(context).colorScheme.outline;
+    final primaryContainer = Theme.of(context).colorScheme.primaryContainer;
+    final onPrimaryContainer = Theme.of(context).colorScheme.onPrimaryContainer;
+
+    Widget heading(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.6,
+              color: outline,
+            ),
+          ),
+        );
+
+    void toggle(Set<int> set, int uid) =>
+        setState(() => set.contains(uid) ? set.remove(uid) : set.add(uid));
+
+    Widget toggleBtn(String label, bool active, VoidCallback onTap) =>
+        OutlinedButton(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            textStyle: const TextStyle(fontSize: 11),
+            visualDensity: VisualDensity.compact,
+            backgroundColor: active ? primaryContainer : null,
+            foregroundColor: active ? onPrimaryContainer : null,
+          ),
+          child: Text(label),
+        );
+
+    Widget sentenceRow(ExampleSentence s, int uid) {
+      final pinyin = _pinyinRevealed.contains(uid);
+      final english = _englishRevealed.contains(uid);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 5, 4, 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                _circled(s.level),
+                style: TextStyle(fontSize: 12, color: outline),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SegmentedSentence(
+                    segments: s.segments,
+                    onSearch: widget.onSearch,
+                  ),
+                  if (pinyin) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      s.pinyin,
+                      style: TextStyle(
+                        fontFamily: 'GentiumPlus',
+                        fontSize: 12,
+                        color: outline,
+                      ),
+                    ),
+                  ],
+                  if (english) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      s.en,
+                      style: TextStyle(fontSize: 12, color: outline),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                toggleBtn('pī', pinyin, () => toggle(_pinyinRevealed, uid)),
+                const SizedBox(height: 4),
+                toggleBtn('En', english, () => toggle(_englishRevealed, uid)),
+              ],
+            ),
+            _TtsButton(text: s.zh, traditional: false),
+          ],
+        ),
+      );
+    }
+
+    int uid = 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1, indent: 16, endIndent: 16),
+        if (target.isNotEmpty) ...[
+          heading('EXAMPLES'),
+          ...target.map((s) => sentenceRow(s, uid++)),
+        ],
+        if (incidental.isNotEmpty) ...[
+          heading('ALSO APPEARS IN'),
+          ...incidental.map((s) => sentenceRow(s, uid++)),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tappable segmented sentence
+// ---------------------------------------------------------------------------
+
+class _SegmentedSentence extends StatelessWidget {
+  const _SegmentedSentence({required this.segments, required this.onSearch});
+  final List<String> segments;
+  final void Function(String) onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 0,
+      runSpacing: 0,
+      children: segments.map((seg) {
+        final isPunct = RegExp(r'^[\p{P}\p{S}\s]+$', unicode: true).hasMatch(seg);
+        if (isPunct) {
+          return Text(seg, style: const TextStyle(fontSize: 15));
+        }
+        return GestureDetector(
+          onTap: () => onSearch(seg),
+          child: Text(
+            seg,
+            style: const TextStyle(
+              fontSize: 15,
+              decoration: TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.dotted,
+              decorationColor: Color(0xFFAAAAAA),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
