@@ -29,12 +29,33 @@ enum AppTextSize {
 
 const kRed = Color(0xFFC0392B);
 
-const kToneColors = [
-  Color(0xFFCC0000), // tone 1
-  Color(0xFFCC7700), // tone 2
-  Color(0xFF008800), // tone 3
-  Color(0xFF0000CC), // tone 4
-  Color(0xFF888888), // neutral / tone 5
+/// Background fill for stroke-order canvases.
+const kStrokeBg = Color(0xFFF5F5F5);
+
+/// Dotted underline color on tappable sentence segments.
+const kSegmentUnderline = Color(0xFFAAAAAA);
+
+const kDefaultToneColors = [
+  Color(0xFFCC0000), // tone 1 — red
+  Color(0xFFCC7700), // tone 2 — orange
+  Color(0xFF008800), // tone 3 — green
+  Color(0xFF0000CC), // tone 4 — blue
+  Color(0xFF888888), // tone 5 — gray
+];
+
+/// Selectable palette shown in the tone-colour settings UI.
+const kToneColorPalette = [
+  Color(0xFFCC0000), // red
+  Color(0xFFCC5500), // orange-red
+  Color(0xFFCC7700), // orange
+  Color(0xFFCCAA00), // amber
+  Color(0xFF007700), // green
+  Color(0xFF007777), // teal
+  Color(0xFF0000CC), // blue
+  Color(0xFF6600CC), // purple
+  Color(0xFFCC0088), // pink
+  Color(0xFF888888), // gray
+  Color(0xFF333333), // near-black
 ];
 
 int toneOf(String syllable) {
@@ -51,7 +72,8 @@ Widget hanziPinyinGrid(
   String pinyin,
   TextStyle hanziStyle,
   TextStyle pinyinStyle, {
-  required bool toneColors,
+  /// Five-element list of tone colors, or null to disable coloring.
+  List<Color>? toneColors,
   void Function(int index)? onCharTap,
 }) {
   final syllables = pinyin.split(' ');
@@ -60,7 +82,7 @@ Widget hanziPinyinGrid(
     runSpacing: 4,
     children: List.generate(hanzi.length, (i) {
       final syl = i < syllables.length ? syllables[i] : '';
-      final color = toneColors ? kToneColors[toneOf(syl) - 1] : null;
+      final color = toneColors?[toneOf(syl) - 1];
       Widget cell = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Column(
@@ -92,15 +114,15 @@ Widget hanziWidget(
   String simplified,
   String pinyin,
   TextStyle style, {
-  required bool toneColors,
+  List<Color>? toneColors,
 }) {
-  if (!toneColors) return Text(simplified, style: style);
+  if (toneColors == null) return Text(simplified, style: style);
   final syllables = pinyin.split(' ');
   final spans = List.generate(simplified.length, (i) {
     final syllable = i < syllables.length ? syllables[i] : '';
     return TextSpan(
       text: simplified[i],
-      style: style.copyWith(color: kToneColors[toneOf(syllable) - 1]),
+      style: style.copyWith(color: toneColors[toneOf(syllable) - 1]),
     );
   });
   return RichText(

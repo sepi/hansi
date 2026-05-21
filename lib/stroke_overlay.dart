@@ -8,6 +8,9 @@ import 'mma_entry.dart';
 import 'pinyin_utils.dart';
 import 'theme.dart';
 
+const _kCellSize = 88.0;   // per-character stroke animator tile
+const _kDialogSize = 240.0; // stroke animator inside the dialog
+
 StrokeOrderAnimationController _makeController(
   String strokeJson,
   TickerProvider vsync, {
@@ -20,7 +23,7 @@ StrokeOrderAnimationController _makeController(
       strokeColor: kRed,
       showOutline: false,
       showBackground: true,
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: kStrokeBg,
     );
 
 // ---------------------------------------------------------------------------
@@ -91,7 +94,7 @@ class _StrokeOverlayState extends State<StrokeOverlay>
             const SizedBox(height: 4),
             StrokeOrderAnimator(
               _controller,
-              size: const Size(240, 240),
+              size: const Size(_kDialogSize, _kDialogSize),
               key: ValueKey(widget.char),
             ),
             const SizedBox(height: 8),
@@ -151,6 +154,7 @@ class CharStrokeAnimator extends StatefulWidget {
   State<CharStrokeAnimator> createState() => _CharStrokeAnimatorState();
 }
 
+
 class _CharStrokeAnimatorState extends State<CharStrokeAnimator>
     with TickerProviderStateMixin {
   late final StrokeOrderAnimationController _controller;
@@ -169,10 +173,8 @@ class _CharStrokeAnimatorState extends State<CharStrokeAnimator>
   }
 
   @override
-  Widget build(BuildContext context) => StrokeOrderAnimator(
-        _controller,
-        size: Size(widget.size, widget.size),
-      );
+  Widget build(BuildContext context) =>
+      StrokeOrderAnimator(_controller, size: Size(widget.size, widget.size));
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +268,7 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
       if (ctrl == null) continue;
       ctrl.removeListener(_onCtrlChanged);
       ctrl.stopAnimation();
-      while (ctrl.currentStroke > 0) ctrl.previousStroke();
+      while (ctrl.currentStroke > 0) { ctrl.previousStroke(); }
     }
     setState(() => _current = idx);
     _startAt(idx);
@@ -349,13 +351,16 @@ class _SequentialStrokeRowState extends State<SequentialStrokeRow>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ctrl != null
-                      ? StrokeOrderAnimator(ctrl, size: const Size(88, 88))
+                      ? StrokeOrderAnimator(
+                          ctrl,
+                          size: const Size(_kCellSize, _kCellSize),
+                        )
                       : Container(
-                          width: 88,
-                          height: 88,
+                          width: _kCellSize,
+                          height: _kCellSize,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
+                            color: kStrokeBg,
                             border: Border.all(color: Colors.black12),
                           ),
                           child: Text(char,

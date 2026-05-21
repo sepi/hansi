@@ -68,7 +68,7 @@ Future<WordIndex> loadWordIndex(
     final end = (start + chunkSize).clamp(0, total);
     await Future(() {
       for (var i = start; i < end; i++) {
-        final sets = entries[i].definitions.map(_tokenizeDef).toList();
+        final sets = entries[i].definitions.map(tokenizeDef).toList();
         perDef.add(sets);
         combined.add({for (final s in sets) ...s});
         normStr.add(
@@ -172,13 +172,6 @@ Future<List<ExampleSentence>> loadExampleSentences(
   onProgress(1.0);
   return sentences;
 }
-
-Set<String> _tokenizeDef(String def) => def
-    .toLowerCase()
-    .replaceAll(';', ' ')
-    .split(RegExp(r'\W+'))
-    .where((w) => w.isNotEmpty)
-    .toSet();
 
 Map<String, int> _parseFreq(String text) {
   final map = <String, int>{};

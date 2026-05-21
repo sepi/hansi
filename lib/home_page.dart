@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'anki_service.dart';
+import 'constants.dart';
 import 'example_sentence.dart';
 import 'menu_sheet.dart';
 import 'mma_entry.dart';
 import 'results_table.dart';
 import 'search.dart';
 import 'search_history.dart';
+import 'search_page.dart';
 import 'search_section.dart';
 import 'search_worker.dart';
 import 'theme.dart';
@@ -40,7 +42,7 @@ class _HomePageState extends State<HomePage> {
 
   HanziFont _font = HanziFont.sans;
   AppTextSize _textSize = AppTextSize.md;
-  bool _toneColors = false;
+  List<Color>? _toneColors; // null = disabled
   bool _showTraditional = false;
   double _strokeSpeed = 1.2;
 
@@ -72,7 +74,11 @@ class _HomePageState extends State<HomePage> {
         _font = HanziFont.values[fontIdx.clamp(0, HanziFont.values.length - 1)];
         _textSize =
             AppTextSize.values[sizeIdx.clamp(0, AppTextSize.values.length - 1)];
-        _toneColors = prefs.getBool('tone_colors') ?? false;
+        final toneEnabled = prefs.getBool('tone_colors') ?? false;
+        _toneColors = toneEnabled
+            ? List.generate(5, (i) =>
+                Color(prefs.getInt('tone_color_$i') ?? kDefaultToneColors[i].toARGB32()))
+            : null;
         _showTraditional = prefs.getBool('show_traditional') ?? false;
         _strokeSpeed = prefs.getDouble('stroke_speed') ?? 1.2;
         _history.addAll(prefs.getStringList('history') ?? []);
@@ -84,7 +90,11 @@ class _HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('font', _font.index);
     await prefs.setInt('text_size', _textSize.index);
-    await prefs.setBool('tone_colors', _toneColors);
+    await prefs.setBool('tone_colors', _toneColors != null);
+    final colors = _toneColors ?? kDefaultToneColors;
+    for (var i = 0; i < 5; i++) {
+      await prefs.setInt('tone_color_$i', colors[i].toARGB32());
+    }
     await prefs.setBool('show_traditional', _showTraditional);
     await prefs.setDouble('stroke_speed', _strokeSpeed);
   }
@@ -105,8 +115,25 @@ class _HomePageState extends State<HomePage> {
   void _onChanged(String value) {
     _debounce?.cancel();
     setState(() => _searching = value.trim().isNotEmpty);
-    _debounce =
-        Timer(const Duration(milliseconds: 300), () => _runSearch(value));
+    _debounce = Timer(kDebounceDelay, () => _runSearch(value));
+  }
+
+  void _onSubmitted(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    _debounce?.cancel();
+    _historyTimer?.cancel();
+    _addToHistory(query);
+    _runSearch(query);
+  }
+
+  void _addToHistory(String query) {
+    setState(() {
+      _history.remove(query);
+      _history.insert(0, query);
+      if (_history.length > kMaxHistory) _history.removeLast();
+    });
+    _saveHistory();
   }
 
   Future<void> _runSearch(String value) async {
@@ -133,14 +160,7 @@ class _HomePageState extends State<HomePage> {
 
     _historyTimer?.cancel();
     if (results.isNotEmpty) {
-      _historyTimer = Timer(const Duration(seconds: 3), () {
-        setState(() {
-          _history.remove(query);
-          _history.insert(0, query);
-          if (_history.length > 100) _history.removeLast();
-        });
-        _saveHistory();
-      });
+      _historyTimer = Timer(kHistoryAddDelay, () => _addToHistory(query));
     }
     setState(() {
       _searching = false;
@@ -190,6 +210,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: kRed,
         foregroundColor: Colors.white,
         title: Image.asset('assets/hansi.png', height: 34),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -206,6 +227,7 @@ class _HomePageState extends State<HomePage> {
             SearchSection(
               controller: _controller,
               onChanged: _onChanged,
+              onSubmitted: _onSubmitted,
               searchHanzi: _searchHanzi,
               searchPinyin: _searchPinyin,
               searchEnglish: _searchEnglish,
@@ -237,10 +259,29 @@ class _HomePageState extends State<HomePage> {
                   strokeData: widget.strokeData,
                   mmaData: widget.mmaData,
                   strokeSpeed: _strokeSpeed,
-                  onSearch: (q) {
-                    _controller.text = q;
-                    _runSearch(q);
-                  },
+                  onSearch: (q) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SearchPage(
+                        initialQuery: q,
+                        worker: widget.worker,
+                        strokeData: widget.strokeData,
+                        mmaData: widget.mmaData,
+                        sentenceData: widget.sentenceData,
+                        ankiInstalled: _ankiInstalled,
+                        font: _font,
+                        toneColors: _toneColors,
+                        showTraditional: _showTraditional,
+                        strokeSpeed: _strokeSpeed,
+                        textSize: _textSize,
+                        history: _history,
+                        onAddToHistory: _addToHistory,
+                        onClearHistory: () {
+                          setState(() => _history.clear());
+                          _saveHistory();
+                        },
+                      ),
+                    ),
+                  ),
                   ankiInstalled: _ankiInstalled,
                   sentenceData: widget.sentenceData,
                 ),

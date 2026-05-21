@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Clipboard + PlatformException
 
 import 'anki_service.dart';
+import 'constants.dart';
 import 'decomposition_tree.dart';
 import 'example_sentence.dart';
 import 'dict_entry.dart';
@@ -19,7 +20,7 @@ class ResultsTable extends StatefulWidget {
     super.key,
     required this.results,
     required this.font,
-    required this.toneColors,
+    required this.toneColors, // null = disabled
     required this.showTraditional,
     required this.strokeData,
     required this.mmaData,
@@ -31,7 +32,7 @@ class ResultsTable extends StatefulWidget {
 
   final List<SearchResult> results;
   final HanziFont font;
-  final bool toneColors;
+  final List<Color>? toneColors;
   final bool showTraditional;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
@@ -81,7 +82,7 @@ class _ResultsTableState extends State<ResultsTable> {
 
   void _onScroll() {
     final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 200 &&
+    if (pos.pixels >= pos.maxScrollExtent - kScrollLoadThreshold &&
         _visibleCount < widget.results.length) {
       setState(() {
         _visibleCount =
@@ -329,14 +330,17 @@ class _TtsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.volume_up_outlined),
-      iconSize: 26,
-      color: Colors.grey.shade500,
+    return Padding(
       padding: const EdgeInsets.only(left: 6),
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      tooltip: 'Listen',
-      onPressed: () => TtsService.instance.speak(text, traditional: traditional),
+      child: IconButton(
+        icon: const Icon(Icons.volume_up_outlined),
+        iconSize: 26,
+        color: Colors.grey.shade500,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        tooltip: 'Listen',
+        onPressed: () => TtsService.instance.speak(text, traditional: traditional),
+      ),
     );
   }
 }
@@ -398,6 +402,9 @@ class _AnkiButton extends StatelessWidget {
 // HSK level chip
 // ---------------------------------------------------------------------------
 
+const _kHskBg = Color(0xFFBBDEFB); // blue[100]
+const _kHskFg = Color(0xFF1565C0); // blue[800]
+
 int? _hskLevel(DictEntry e) =>
     kHskLevel[e.simplified] ?? kHskLevel[e.traditional];
 
@@ -413,7 +420,7 @@ class _HskChip extends StatelessWidget {
         margin: const EdgeInsets.only(left: 6, top: 2),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: const Color(0xFFBBDEFB),  // blue.shade100
+          color: _kHskBg,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
@@ -422,7 +429,7 @@ class _HskChip extends StatelessWidget {
           overflow: TextOverflow.clip,
           style: const TextStyle(
             fontSize: 11,
-            color: Color(0xFF1565C0),  // blue.shade800
+            color: _kHskFg,
             fontWeight: FontWeight.w600,
             height: 1.2,
           ),
@@ -561,18 +568,18 @@ class _SentencesSectionState extends State<_SentencesSection> {
       );
     }
 
-    int uid = 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 1, indent: 16, endIndent: 16),
         if (target.isNotEmpty) ...[
           heading('EXAMPLES'),
-          ...target.map((s) => sentenceRow(s, uid++)),
+          for (var i = 0; i < target.length; i++) sentenceRow(target[i], i),
         ],
         if (incidental.isNotEmpty) ...[
           heading('ALSO APPEARS IN'),
-          ...incidental.map((s) => sentenceRow(s, uid++)),
+          for (var i = 0; i < incidental.length; i++)
+            sentenceRow(incidental[i], target.length + i),
         ],
         const SizedBox(height: 8),
       ],
@@ -604,10 +611,10 @@ class _SegmentedSentence extends StatelessWidget {
           child: Text(
             seg,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 16,
               decoration: TextDecoration.underline,
               decorationStyle: TextDecorationStyle.dotted,
-              decorationColor: Color(0xFFAAAAAA),
+              decorationColor: kSegmentUnderline,
             ),
           ),
         );

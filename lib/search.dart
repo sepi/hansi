@@ -24,7 +24,7 @@ class WordIndex {
   final List<String> normStr;
 }
 
-Set<String> _tokenizeDef(String def) => def
+Set<String> tokenizeDef(String def) => def
     .toLowerCase()
     .replaceAll(';', ' ')
     .split(RegExp(r'\W+'))
@@ -38,7 +38,7 @@ WordIndex buildWordIndex(List<DictEntry> entries) {
   final combined = <Set<String>>[];
   final normStr = <String>[];
   for (final entry in entries) {
-    final sets = entry.definitions.map(_tokenizeDef).toList();
+    final sets = entry.definitions.map(tokenizeDef).toList();
     perDef.add(sets);
     combined.add({for (final s in sets) ...s});
     normStr.add(
@@ -226,7 +226,7 @@ List<SearchResult> _searchEnglish(
     }
   }
 
-  // Tier 0: all query words present in a single definition's word set.
+    // Tier 0: all query words present in a single definition's word set.
   pass(0, (i) => index.perDef[i].any((s) => words.every(s.contains)));
 
   // Tier 1: all query words present across all definitions combined.

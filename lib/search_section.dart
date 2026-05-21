@@ -14,10 +14,12 @@ class SearchSection extends StatefulWidget {
     required this.onHanziChanged,
     required this.onPinyinChanged,
     required this.onEnglishChanged,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onSubmitted;
   final bool searchHanzi;
   final bool searchPinyin;
   final bool searchEnglish;
@@ -52,9 +54,15 @@ class _SearchSectionState extends State<SearchSection> {
               controller: widget.controller,
               focusNode: _focusNode,
               onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Search…',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () =>
+                      widget.onSubmitted?.call(widget.controller.text),
+                ),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

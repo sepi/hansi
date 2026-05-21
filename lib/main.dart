@@ -45,6 +45,13 @@ class DictLoader extends StatefulWidget {
 }
 
 class _DictLoaderState extends State<DictLoader> {
+  // Static cache survives Android activity recreation when the Dart VM stays
+  // alive, avoiding a full reload on brief focus loss.
+  static SearchWorker? _cachedWorker;
+  static Map<String, String> _cachedStrokeData = const {};
+  static Map<String, MmaEntry> _cachedMmaData = const {};
+  static SentenceData _cachedSentenceData = SentenceData.empty;
+
   SearchWorker? _worker;
   Map<String, String> _strokeData = const {};
   Map<String, MmaEntry> _mmaData = const {};
@@ -62,12 +69,15 @@ class _DictLoaderState extends State<DictLoader> {
   @override
   void initState() {
     super.initState();
-    // Delay loading until after the first frame is painted so the loading
-    // screen is guaranteed to be visible before any heavy work begins.
+    if (_cachedWorker != null) {
+      // Dart VM still alive — reuse previously loaded data instantly.
+      _worker = _cachedWorker;
+      _strokeData = _cachedStrokeData;
+      _mmaData = _cachedMmaData;
+      _sentenceData = _cachedSentenceData;
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Wait a few frames so the loading screen is visibly on-screen before
-      // any work starts. addPostFrameCallback alone fires before Android's
-      // SurfaceFlinger has composited the first frame to the display.
       await Future.delayed(const Duration(milliseconds: 200));
       if (mounted) _load();
     });
@@ -86,7 +96,8 @@ class _DictLoaderState extends State<DictLoader> {
 
   @override
   void dispose() {
-    _worker?.dispose();
+    // Worker is held by the static cache — do not dispose it so it
+    // survives activity recreation.
     super.dispose();
   }
 
@@ -114,6 +125,7 @@ class _DictLoaderState extends State<DictLoader> {
         freqMap: freqMap,
         wordIndex: wordIndex,
       );
+      _cachedWorker = worker;
       if (mounted) setState(() => _worker = worker);
 
       // Phase 2 — stroke and etymology data loaded in the background.
@@ -132,11 +144,14 @@ class _DictLoaderState extends State<DictLoader> {
         loadMmaDict((_) {}),
         loadExampleSentences((_) {}),
       ]);
+      _cachedStrokeData = results[0] as Map<String, String>;
+      _cachedMmaData = results[1] as Map<String, MmaEntry>;
+      _cachedSentenceData = SentenceData(results[2] as List<ExampleSentence>);
       if (mounted) {
         setState(() {
-          _strokeData = results[0] as Map<String, String>;
-          _mmaData = results[1] as Map<String, MmaEntry>;
-          _sentenceData = SentenceData(results[2] as List<ExampleSentence>);
+          _strokeData = _cachedStrokeData;
+          _mmaData = _cachedMmaData;
+          _sentenceData = _cachedSentenceData;
         });
       }
     } catch (_) {
