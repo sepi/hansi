@@ -66,6 +66,7 @@ flutter:
     - assets/hansi.png
     - assets/hansi-face.png
     - assets/cedict.txt.gz
+    - assets/word_index.bin
     - assets/word_freq.tsv.gz
     - assets/hsk_levels.tsv
     - assets/graphics.txt.gz

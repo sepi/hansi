@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -98,9 +99,7 @@ class WordIndexBuilder {
         _pairCount++;
       }
     }
-    _normStr.add(
-      defs.map((d) => d.toLowerCase().replaceAll(';', ' ')).join(' '),
-    );
+    _normStr.add(_normalizedDefs(entry));
     _entryCount++;
   }
 
@@ -145,6 +144,65 @@ WordIndex buildWordIndex(List<DictEntry> entries) {
   final builder = WordIndexBuilder();
   entries.forEach(builder.add);
   return builder.finish();
+}
+
+/// An entry's definitions, lowercased and joined, for substring matching.
+String _normalizedDefs(DictEntry e) =>
+    e.definitions.map((d) => d.toLowerCase().replaceAll(';', ' ')).join(' ');
+
+// ---------------------------------------------------------------------------
+// Prebuilt index file (assets/word_index.bin, written by tool/build_index.dart)
+// ---------------------------------------------------------------------------
+//
+// Little-endian int32 word count, posting count and word-list byte length,
+// then the words as UTF-8 joined by '\n', then wordStart and postings as
+// int32. normStr is not stored: it is cheap to derive from the entries.
+// The file must be rebuilt whenever cedict.txt.gz or the tokenizer changes.
+
+Uint8List encodeWordIndex(WordIndex index) {
+  final words = utf8.encode(index.words.join('\n'));
+  final ints = index.wordStart.length + index.postings.length;
+  final out = ByteData(12 + words.length + 4 * ints)
+    ..setInt32(0, index.words.length, Endian.little)
+    ..setInt32(4, index.postings.length, Endian.little)
+    ..setInt32(8, words.length, Endian.little);
+  final bytes = out.buffer.asUint8List()..setAll(12, words);
+  var at = 12 + words.length;
+  for (final list in [index.wordStart, index.postings]) {
+    for (final v in list) {
+      out.setInt32(at, v, Endian.little);
+      at += 4;
+    }
+  }
+  return bytes;
+}
+
+/// Reads an index written by [encodeWordIndex] for the same [entries].
+WordIndex decodeWordIndex(ByteData data, List<DictEntry> entries) {
+  final wordCount = data.getInt32(0, Endian.little);
+  final postingCount = data.getInt32(4, Endian.little);
+  final wordBytes = data.getInt32(8, Endian.little);
+  final words = utf8
+      .decode(data.buffer.asUint8List(data.offsetInBytes + 12, wordBytes))
+      .split('\n');
+  var at = 12 + wordBytes;
+  Int32List readInts(int n) {
+    // Copied rather than viewed, so the asset needs no alignment.
+    final list = Int32List(n);
+    for (var i = 0; i < n; i++, at += 4) {
+      list[i] = data.getInt32(at, Endian.little);
+    }
+    return list;
+  }
+
+  final wordStart = readInts(wordCount + 1);
+  final postings = readInts(postingCount);
+  return WordIndex(
+    words: words,
+    wordStart: wordStart,
+    postings: postings,
+    normStr: [for (final e in entries) _normalizedDefs(e)],
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,5 +46,14 @@ void main() {
       expect(index.postingsFor(w), expected[w], reason: 'postings for "$w"');
     }
     expect(index.postingsFor('xyzzy'), isEmpty);
+  });
+
+  test('encode/decode round-trips the index', () {
+    final decoded = decodeWordIndex(
+        ByteData.sublistView(encodeWordIndex(index)), corpus);
+    expect(decoded.words, index.words);
+    expect(decoded.wordStart, index.wordStart);
+    expect(decoded.postings, index.postings);
+    expect(decoded.normStr, index.normStr);
   });
 }

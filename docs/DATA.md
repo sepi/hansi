@@ -8,7 +8,8 @@ committed to the repository and copied into the app unchanged.
 **Build time:** nothing is generated. `flutter build apk` packages
 `assets/` as-is, so the F-Droid build is a plain Flutter build with no extra
 data step. Regenerating a data file is a manual, occasional task using the
-tools below; the result is committed.
+tools below; the result is committed. The English search index is such a
+file: it is prebuilt by a tool rather than built on every app start.
 
 **Runtime:** on every cold start the app parses the files and builds its
 in-memory structures:
@@ -16,7 +17,7 @@ in-memory structures:
 | Structure | Built from | Where |
 |---|---|---|
 | Dictionary entries | `cedict.txt.gz` | `loadCedict`, `lib/cedict_parser.dart` |
-| English inverted word index | the parsed entries | `WordIndexBuilder`, `lib/search.dart` |
+| English inverted word index | `word_index.bin` (prebuilt) | `decodeWordIndex`, `lib/search.dart` |
 | Homograph definition counts | the parsed entries | `_homographDefs`, `lib/search.dart` (on first search) |
 | Word frequency and HSK maps | `word_freq.tsv.gz`, `hsk_levels.tsv` | `parseNumberedWords`, `lib/asset_loader.dart` |
 | Stroke, decomposition, sentence data | `graphics.txt.gz`, `mma_dict.txt.gz`, `example_sentences.json` | `lib/asset_loader.dart`, loaded after the search screen is shown |
@@ -28,6 +29,7 @@ in-memory structures:
 | `cedict.txt.gz` | [CC-CEDICT](https://cc-cedict.org), CC BY-SA 4.0; current file dated 2026-05-14 | Download `cedict_1_0_ts_utf-8_mdbg.txt.gz` from <https://www.mdbg.net/chinese/dictionary?page=cc-cedict> and save it as `assets/cedict.txt.gz`. |
 | `word_freq.tsv.gz` | SUBTLEX-CH word frequencies (Cai & Brysbaert, 2010), CC BY 4.0 | `rank<TAB>word`, most frequent first. The conversion script is not in the repository yet. |
 | `hanzi_freq.tsv.gz` | SUBTLEX-CH character frequencies, CC BY 4.0 | Same format. Used only by tests; not bundled in the app. The conversion script is not in the repository yet. |
+| `word_index.bin` | Generated from `cedict.txt.gz`: the English word index (words, and for each the entries and definitions it occurs in) | `dart run tool/build_index.dart`. **Rerun after updating `cedict.txt.gz` or changing `tokenizeDef`**; a stale file gives wrong English results. |
 | `hsk_levels.tsv` | Old HSK (2.0) levels 1–6 from [complete-hsk-vocabulary](https://github.com/drkameleon/complete-hsk-vocabulary), MIT | `git clone --depth 1 https://github.com/drkameleon/complete-hsk-vocabulary /tmp/hsk` then `dart run tool/build_hsk_levels.dart /tmp/hsk` |
 | `graphics.txt.gz` | `graphics.txt` from [Make Me a Hanzi](https://github.com/skishore/makemeahanzi), Arphic Public License | `gzip -9 -c graphics.txt > assets/graphics.txt.gz` |
 | `mma_dict.txt.gz` | `dictionary.txt` from [Make Me a Hanzi](https://github.com/skishore/makemeahanzi), CC BY-SA 4.0 | `gzip -9 -c dictionary.txt > assets/mma_dict.txt.gz` |

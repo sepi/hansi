@@ -63,7 +63,7 @@ class _DictLoaderState extends State<DictLoader> {
   final Map<String, double> _progress = {
     'Loading dictionary': 0,
     'Loading frequency data': 0,
-    'Building index': 0,
+    'Loading index': 0,
   };
 
   bool _precached = false;
@@ -121,7 +121,7 @@ class _DictLoaderState extends State<DictLoader> {
       final hskLevels = phase1[2] as Map<String, int>;
 
       final wordIndex =
-          await loadWordIndex(entries, (p) => _report('Building index', p));
+          await loadWordIndex(entries, (p) => _report('Loading index', p));
 
       // Spawn the persistent search isolate. Data is copied once here;
       // every query after this sends only a short string across the boundary.

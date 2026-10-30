@@ -59,25 +59,16 @@ Future<Map<String, int>> loadFrequency(ProgressCallback onProgress) async {
 Future<Map<String, int>> loadHskLevels() async =>
     parseNumberedWords(await rootBundle.loadString('assets/hsk_levels.tsv'));
 
+/// Loads the prebuilt English index (see tool/build_index.dart).
 Future<WordIndex> loadWordIndex(
   List<DictEntry> entries,
   ProgressCallback onProgress,
 ) async {
-  const chunkSize = 10000;
-  final builder = WordIndexBuilder();
-  final total = entries.length;
-
-  for (var start = 0; start < total; start += chunkSize) {
-    final end = (start + chunkSize).clamp(0, total);
-    await Future(() {
-      for (var i = start; i < end; i++) {
-        builder.add(entries[i]);
-      }
-    });
-    onProgress(end / total);
-  }
-
-  return Future(builder.finish);
+  final data = await rootBundle.load('assets/word_index.bin');
+  onProgress(0.5);
+  final index = await Future(() => decodeWordIndex(data, entries));
+  onProgress(1.0);
+  return index;
 }
 
 Future<Map<String, String>> loadGraphics(ProgressCallback onProgress) async {
