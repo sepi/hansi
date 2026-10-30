@@ -101,7 +101,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/hansi-face.png"
+  image_path: "assets/hansi-face-square.png" # square, so the face is not stretched
   web:
     generate: false
   windows:
