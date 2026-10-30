@@ -7,7 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'anki_service.dart';
 import 'app_settings.dart';
 import 'constants.dart';
+import 'dict_entry.dart';
 import 'example_sentence.dart';
+import 'idiom_card.dart';
 import 'mma_entry.dart';
 import 'results_table.dart';
 import 'search.dart';
@@ -22,6 +24,7 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.worker,
     required this.hskLevels,
+    required this.idioms,
     required this.strokeData,
     required this.mmaData,
     required this.sentenceData,
@@ -29,6 +32,9 @@ class HomePage extends StatefulWidget {
 
   final SearchWorker worker;
   final Map<String, int> hskLevels;
+
+  /// Pool for the idiom-of-the-day card; empty hides it.
+  final List<DictEntry> idioms;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
   final SentenceData sentenceData;
@@ -150,6 +156,20 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Widget _idiomCard() {
+    final idiom = idiomOfTheDay(widget.idioms, DateTime.now());
+    return IdiomCard(
+      entry: idiom,
+      font: _settings.font,
+      toneColors: _settings.toneColors,
+      showTraditional: _settings.showTraditional,
+      onTap: () {
+        _controller.text = idiom.simplified;
+        _runSearch(idiom.simplified);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,20 +253,23 @@ class _HomePageState extends State<HomePage> {
                 padding: EdgeInsets.only(top: 48),
                 child: Text('No results', style: TextStyle(color: Colors.grey)),
               )
-            else if (_history.isNotEmpty)
-              Expanded(
-                child: SearchHistory(
-                  history: _history,
-                  onSelect: (q) {
-                    _controller.text = q;
-                    _runSearch(q);
-                  },
-                  onClear: () {
-                    setState(() => _history.clear());
-                    _saveHistory();
-                  },
+            else ...[
+              if (widget.idioms.isNotEmpty) _idiomCard(),
+              if (_history.isNotEmpty)
+                Expanded(
+                  child: SearchHistory(
+                    history: _history,
+                    onSelect: (q) {
+                      _controller.text = q;
+                      _runSearch(q);
+                    },
+                    onClear: () {
+                      setState(() => _history.clear());
+                      _saveHistory();
+                    },
+                  ),
                 ),
-              ),
+            ],
           ],
         ),
       ),

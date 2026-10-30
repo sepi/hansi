@@ -5,6 +5,7 @@ import 'asset_loader.dart';
 import 'dict_entry.dart';
 import 'example_sentence.dart';
 import 'home_page.dart';
+import 'idiom_card.dart';
 import 'mma_entry.dart';
 import 'search_worker.dart';
 import 'theme.dart';
@@ -49,12 +50,14 @@ class _DictLoaderState extends State<DictLoader> {
   // alive, avoiding a full reload on brief focus loss.
   static SearchWorker? _cachedWorker;
   static Map<String, int> _cachedHskLevels = const {};
+  static List<DictEntry> _cachedIdioms = const [];
   static Map<String, String> _cachedStrokeData = const {};
   static Map<String, MmaEntry> _cachedMmaData = const {};
   static SentenceData _cachedSentenceData = SentenceData.empty;
 
   SearchWorker? _worker;
   Map<String, int> _hskLevels = const {};
+  List<DictEntry> _idioms = const [];
   Map<String, String> _strokeData = const {};
   Map<String, MmaEntry> _mmaData = const {};
   SentenceData _sentenceData = SentenceData.empty;
@@ -75,6 +78,7 @@ class _DictLoaderState extends State<DictLoader> {
       // Dart VM still alive — reuse previously loaded data instantly.
       _worker = _cachedWorker;
       _hskLevels = _cachedHskLevels;
+      _idioms = _cachedIdioms;
       _strokeData = _cachedStrokeData;
       _mmaData = _cachedMmaData;
       _sentenceData = _cachedSentenceData;
@@ -119,6 +123,9 @@ class _DictLoaderState extends State<DictLoader> {
       final entries = phase1[0] as List<DictEntry>;
       final freqMap = phase1[1] as Map<String, int>;
       final hskLevels = phase1[2] as Map<String, int>;
+      // Kept on this isolate for the home screen; the entries themselves
+      // move to the search isolate.
+      final idioms = commonIdioms(entries, freqMap);
 
       final wordIndex =
           await loadWordIndex(entries, (p) => _report('Loading index', p));
@@ -133,10 +140,12 @@ class _DictLoaderState extends State<DictLoader> {
       );
       _cachedWorker = worker;
       _cachedHskLevels = hskLevels;
+      _cachedIdioms = idioms;
       if (mounted) {
         setState(() {
           _worker = worker;
           _hskLevels = hskLevels;
+          _idioms = idioms;
         });
       }
 
@@ -205,6 +214,7 @@ class _DictLoaderState extends State<DictLoader> {
     return HomePage(
       worker: _worker!,
       hskLevels: _hskLevels,
+      idioms: _idioms,
       strokeData: _strokeData,
       mmaData: _mmaData,
       sentenceData: _sentenceData,
