@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'anki_service.dart';
+import 'app_settings.dart';
 import 'constants.dart';
 import 'example_sentence.dart';
-import 'menu_sheet.dart';
 import 'mma_entry.dart';
 import 'results_table.dart';
 import 'search.dart';
@@ -42,11 +42,7 @@ class _HomePageState extends State<HomePage> {
   bool _searchPinyin = true;
   bool _searchEnglish = true;
 
-  HanziFont _font = HanziFont.sans;
-  AppTextSize _textSize = AppTextSize.md;
-  List<Color>? _toneColors; // null = disabled
-  bool _showTraditional = false;
-  double _strokeSpeed = 1.2;
+  final _settings = AppSettings();
 
   bool _ankiInstalled = false;
 
@@ -63,44 +59,24 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _settings
+      ..addListener(_onSettingsChanged)
+      ..load();
+    _loadHistory();
     AnkiService.instance.isInstalled.then((v) {
       if (mounted) setState(() => _ankiInstalled = v);
     });
   }
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final fontIdx = prefs.getInt('font') ?? 0;
-    final sizeIdx = prefs.getInt('text_size') ?? 2;
-    if (mounted) {
-      setState(() {
-        _font = HanziFont.values[fontIdx.clamp(0, HanziFont.values.length - 1)];
-        _textSize =
-            AppTextSize.values[sizeIdx.clamp(0, AppTextSize.values.length - 1)];
-        final toneEnabled = prefs.getBool('tone_colors') ?? false;
-        _toneColors = toneEnabled
-            ? List.generate(5, (i) =>
-                Color(prefs.getInt('tone_color_$i') ?? kDefaultToneColors[i].toARGB32()))
-            : null;
-        _showTraditional = prefs.getBool('show_traditional') ?? false;
-        _strokeSpeed = prefs.getDouble('stroke_speed') ?? 1.2;
-        _history.addAll(prefs.getStringList('history') ?? []);
-      });
-    }
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _saveSettings() async {
+  Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('font', _font.index);
-    await prefs.setInt('text_size', _textSize.index);
-    await prefs.setBool('tone_colors', _toneColors != null);
-    final colors = _toneColors ?? kDefaultToneColors;
-    for (var i = 0; i < 5; i++) {
-      await prefs.setInt('tone_color_$i', colors[i].toARGB32());
+    if (mounted) {
+      setState(() => _history.addAll(prefs.getStringList('history') ?? []));
     }
-    await prefs.setBool('show_traditional', _showTraditional);
-    await prefs.setDouble('stroke_speed', _strokeSpeed);
   }
 
   Future<void> _saveHistory() async {
@@ -113,6 +89,7 @@ class _HomePageState extends State<HomePage> {
     _debounce?.cancel();
     _historyTimer?.cancel();
     _controller.dispose();
+    _settings.dispose();
     super.dispose();
   }
 
@@ -173,41 +150,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _openMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => MenuSheet(
-        font: _font,
-        textSize: _textSize,
-        toneColors: _toneColors,
-        showTraditional: _showTraditional,
-        onFontChanged: (f) {
-          setState(() => _font = f);
-          _saveSettings();
-        },
-        onSizeChanged: (s) {
-          setState(() => _textSize = s);
-          _saveSettings();
-        },
-        onToneColorsChanged: (v) {
-          setState(() => _toneColors = v);
-          _saveSettings();
-        },
-        onTraditionalChanged: (v) {
-          setState(() => _showTraditional = v);
-          _saveSettings();
-        },
-        strokeSpeed: _strokeSpeed,
-        onStrokeSpeedChanged: (v) {
-          setState(() => _strokeSpeed = v);
-          _saveSettings();
-        },
-        ankiInstalled: _ankiInstalled,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -217,16 +159,12 @@ class _HomePageState extends State<HomePage> {
         title: Image.asset('assets/hansi.png', height: 34),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => _openMenu(context),
-            tooltip: 'Menu',
-          ),
+          SettingsButton(settings: _settings, ankiInstalled: _ankiInstalled),
         ],
       ),
       body: MediaQuery(
         data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(_textSize.scale)),
+            .copyWith(textScaler: TextScaler.linear(_settings.textSize.scale)),
         child: Column(
           children: [
             SearchSection(
@@ -258,13 +196,13 @@ class _HomePageState extends State<HomePage> {
               Expanded(
                 child: ResultsTable(
                   results: _results,
-                  font: _font,
-                  toneColors: _toneColors,
-                  showTraditional: _showTraditional,
+                  font: _settings.font,
+                  toneColors: _settings.toneColors,
+                  showTraditional: _settings.showTraditional,
                   hskLevels: widget.hskLevels,
                   strokeData: widget.strokeData,
                   mmaData: widget.mmaData,
-                  strokeSpeed: _strokeSpeed,
+                  strokeSpeed: _settings.strokeSpeed,
                   onSearch: (q) => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => SearchPage(
@@ -275,11 +213,7 @@ class _HomePageState extends State<HomePage> {
                         mmaData: widget.mmaData,
                         sentenceData: widget.sentenceData,
                         ankiInstalled: _ankiInstalled,
-                        font: _font,
-                        toneColors: _toneColors,
-                        showTraditional: _showTraditional,
-                        strokeSpeed: _strokeSpeed,
-                        textSize: _textSize,
+                        settings: _settings,
                         history: _history,
                         onAddToHistory: _addToHistory,
                         onClearHistory: () {

@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'app_settings.dart';
 import 'constants.dart';
 import 'example_sentence.dart';
 import 'mma_entry.dart';
@@ -23,11 +24,7 @@ class SearchPage extends StatefulWidget {
     required this.mmaData,
     required this.sentenceData,
     required this.ankiInstalled,
-    required this.font,
-    required this.toneColors, // null = disabled
-    required this.showTraditional,
-    required this.strokeSpeed,
-    required this.textSize,
+    required this.settings,
     this.history = const [],
     this.onAddToHistory,
     this.onClearHistory,
@@ -40,11 +37,7 @@ class SearchPage extends StatefulWidget {
   final Map<String, MmaEntry> mmaData;
   final SentenceData sentenceData;
   final bool ankiInstalled;
-  final HanziFont font;
-  final List<Color>? toneColors;
-  final bool showTraditional;
-  final double strokeSpeed;
-  final AppTextSize textSize;
+  final AppSettings settings;
   final List<String> history;
   final ValueChanged<String>? onAddToHistory;
   final VoidCallback? onClearHistory;
@@ -70,6 +63,7 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
+    widget.settings.addListener(_onSettingsChanged);
     if (widget.initialQuery.isNotEmpty) {
       _controller.text = widget.initialQuery;
       _searching = true;
@@ -84,7 +78,12 @@ class _SearchPageState extends State<SearchPage> {
     _debounce?.cancel();
     _historyTimer?.cancel();
     _controller.dispose();
+    widget.settings.removeListener(_onSettingsChanged);
     super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onChanged(String value) {
@@ -142,11 +141,7 @@ class _SearchPageState extends State<SearchPage> {
         mmaData: widget.mmaData,
         sentenceData: widget.sentenceData,
         ankiInstalled: widget.ankiInstalled,
-        font: widget.font,
-        toneColors: widget.toneColors,
-        showTraditional: widget.showTraditional,
-        strokeSpeed: widget.strokeSpeed,
-        textSize: widget.textSize,
+        settings: widget.settings,
         history: widget.history,
         onAddToHistory: widget.onAddToHistory,
         onClearHistory: widget.onClearHistory,
@@ -165,10 +160,14 @@ class _SearchPageState extends State<SearchPage> {
         foregroundColor: Colors.white,
         title: Image.asset('assets/hansi.png', height: 34),
         centerTitle: true,
+        actions: [
+          SettingsButton(
+              settings: widget.settings, ankiInstalled: widget.ankiInstalled),
+        ],
       ),
       body: MediaQuery(
         data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(widget.textSize.scale)),
+            .copyWith(textScaler: TextScaler.linear(widget.settings.textSize.scale)),
         child: Column(
           children: [
             SearchSection(
@@ -200,13 +199,13 @@ class _SearchPageState extends State<SearchPage> {
               Expanded(
                 child: ResultsTable(
                   results: _results,
-                  font: widget.font,
-                  toneColors: widget.toneColors,
-                  showTraditional: widget.showTraditional,
+                  font: widget.settings.font,
+                  toneColors: widget.settings.toneColors,
+                  showTraditional: widget.settings.showTraditional,
                   hskLevels: widget.hskLevels,
                   strokeData: widget.strokeData,
                   mmaData: widget.mmaData,
-                  strokeSpeed: widget.strokeSpeed,
+                  strokeSpeed: widget.settings.strokeSpeed,
                   onSearch: _onSearch,
                   ankiInstalled: widget.ankiInstalled,
                   sentenceData: widget.sentenceData,
