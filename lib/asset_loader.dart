@@ -59,30 +59,20 @@ Future<WordIndex> loadWordIndex(
   ProgressCallback onProgress,
 ) async {
   const chunkSize = 10000;
-  final perDef = <List<Set<String>>>[];
-  final combined = <Set<String>>[];
-  final normStr = <String>[];
+  final builder = WordIndexBuilder();
   final total = entries.length;
 
   for (var start = 0; start < total; start += chunkSize) {
     final end = (start + chunkSize).clamp(0, total);
     await Future(() {
       for (var i = start; i < end; i++) {
-        final sets = entries[i].definitions.map(tokenizeDef).toList();
-        perDef.add(sets);
-        combined.add({for (final s in sets) ...s});
-        normStr.add(
-          entries[i]
-              .definitions
-              .map((d) => d.toLowerCase().replaceAll(';', ' '))
-              .join(' '),
-        );
+        builder.add(entries[i]);
       }
     });
     onProgress(end / total);
   }
 
-  return WordIndex(perDef: perDef, combined: combined, normStr: normStr);
+  return Future(builder.finish);
 }
 
 Future<Map<String, String>> loadGraphics(ProgressCallback onProgress) async {

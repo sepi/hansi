@@ -1,27 +1,61 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:typed_data';
+
 import 'dict_entry.dart';
 import 'hsk.dart';
 import 'pinyin_utils.dart';
 
 // ---------------------------------------------------------------------------
-// Word index — precomputed at boot for fast English lookup
+// Word index — inverted index from English word to (entry, definition)
 // ---------------------------------------------------------------------------
 
+/// Bits of a posting reserved for the definition number within an entry.
+const _defBits = 5;
+const _defMask = (1 << _defBits) - 1;
+
+/// Inverted index over definition words, stored as flat typed arrays
+/// (CSR layout) instead of per-entry hash sets.
+///
+/// Each posting packs `(entryId << 5) | defIndex`. The postings of word k are
+/// `postings[wordStart[k] .. wordStart[k + 1]]`, sorted ascending, so they are
+/// ordered by entry and then by definition.
 class WordIndex {
   const WordIndex({
-    required this.perDef,
-    required this.combined,
+    required this.words,
+    required this.wordStart,
+    required this.postings,
     required this.normStr,
   });
 
-  /// Per-entry, per-definition word sets (used for tier-0: all words in one def).
-  final List<List<Set<String>>> perDef;
+  /// Distinct definition words, sorted for binary search.
+  final List<String> words;
 
-  /// Per-entry union of all definition words (tiers 1 and 2).
-  final List<Set<String>> combined;
+  /// Start of each word's slice in [postings]; length is `words.length + 1`.
+  final Int32List wordStart;
+
+  final Int32List postings;
 
   /// Per-entry normalized combined string for substring tier-3 fallback.
   final List<String> normStr;
+
+  /// Packed postings for [word], or an empty list if it never occurs.
+  Int32List postingsFor(String word) {
+    var lo = 0, hi = words.length - 1;
+    while (lo <= hi) {
+      final mid = (lo + hi) >> 1;
+      final c = words[mid].compareTo(word);
+      if (c == 0) {
+        return Int32List.sublistView(
+            postings, wordStart[mid], wordStart[mid + 1]);
+      }
+      if (c < 0) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return Int32List(0);
+  }
 }
 
 Set<String> tokenizeDef(String def) => def
@@ -31,21 +65,86 @@ Set<String> tokenizeDef(String def) => def
     .where((w) => w.isNotEmpty)
     .toSet();
 
+/// Builds a [WordIndex] one entry at a time, so boot-time loading can yield
+/// between chunks. Entries must be added in dictionary order.
+class WordIndexBuilder {
+  final _wordIds = <String, int>{};
+  final _words = <String>[];
+  final _normStr = <String>[];
+  // (wordId, posting) pairs in insertion order; grown by doubling.
+  var _pairWord = Int32List(1 << 16);
+  var _pairPosting = Int32List(1 << 16);
+  var _pairCount = 0;
+  var _entryCount = 0;
+
+  void add(DictEntry entry) {
+    final defs = entry.definitions;
+    if (defs.length > _defMask + 1) {
+      throw StateError('Entry ${entry.simplified} has ${defs.length} '
+          'definitions; the index supports at most ${_defMask + 1}.');
+    }
+    for (var d = 0; d < defs.length; d++) {
+      for (final w in tokenizeDef(defs[d])) {
+        final id = _wordIds.putIfAbsent(w, () {
+          _words.add(w);
+          return _words.length - 1;
+        });
+        if (_pairCount == _pairWord.length) {
+          _pairWord = _grow(_pairWord);
+          _pairPosting = _grow(_pairPosting);
+        }
+        _pairWord[_pairCount] = id;
+        _pairPosting[_pairCount] = (_entryCount << _defBits) | d;
+        _pairCount++;
+      }
+    }
+    _normStr.add(
+      defs.map((d) => d.toLowerCase().replaceAll(';', ' ')).join(' '),
+    );
+    _entryCount++;
+  }
+
+  static Int32List _grow(Int32List a) => Int32List(a.length * 2)..setAll(0, a);
+
+  WordIndex finish() {
+    // Assign final ids in sorted word order.
+    final order = List<int>.generate(_words.length, (i) => i)
+      ..sort((a, b) => _words[a].compareTo(_words[b]));
+    final rank = Int32List(_words.length);
+    for (var r = 0; r < order.length; r++) {
+      rank[order[r]] = r;
+    }
+
+    // Counting sort of pairs by word rank. Pairs were added in ascending
+    // posting order, so each word's slice comes out already sorted.
+    final wordStart = Int32List(_words.length + 1);
+    for (var i = 0; i < _pairCount; i++) {
+      wordStart[rank[_pairWord[i]] + 1]++;
+    }
+    for (var k = 0; k < _words.length; k++) {
+      wordStart[k + 1] += wordStart[k];
+    }
+    final fill = Int32List.fromList(wordStart);
+    final postings = Int32List(_pairCount);
+    for (var i = 0; i < _pairCount; i++) {
+      postings[fill[rank[_pairWord[i]]]++] = _pairPosting[i];
+    }
+
+    return WordIndex(
+      words: [for (final i in order) _words[i]],
+      wordStart: wordStart,
+      postings: postings,
+      normStr: _normStr,
+    );
+  }
+}
+
 /// Builds a [WordIndex] synchronously. Use [loadWordIndex] from
 /// asset_loader.dart for the boot-time chunked version with progress.
 WordIndex buildWordIndex(List<DictEntry> entries) {
-  final perDef = <List<Set<String>>>[];
-  final combined = <Set<String>>[];
-  final normStr = <String>[];
-  for (final entry in entries) {
-    final sets = entry.definitions.map(tokenizeDef).toList();
-    perDef.add(sets);
-    combined.add({for (final s in sets) ...s});
-    normStr.add(
-      entry.definitions.map((d) => d.toLowerCase().replaceAll(';', ' ')).join(' '),
-    );
-  }
-  return WordIndex(perDef: perDef, combined: combined, normStr: normStr);
+  final builder = WordIndexBuilder();
+  entries.forEach(builder.add);
+  return builder.finish();
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +200,7 @@ List<SearchResult> search(
     }
   }
   if (english) {
-    for (final r in _searchEnglish(entries, rawQuery, wordIndex)) {
+    for (final r in searchEnglish(entries, rawQuery, wordIndex)) {
       if (seen.add(r.entry)) results.add(r);
     }
   }
@@ -204,7 +303,9 @@ List<SearchResult> _searchPinyin(List<DictEntry> entries, String rawQuery) {
 // English search  (uses precomputed WordIndex — no regex at query time)
 // ---------------------------------------------------------------------------
 
-List<SearchResult> _searchEnglish(
+/// Unsorted English matches, grouped by tier and in dictionary order within
+/// each tier. Public so tests can compare it before [search] sorts it.
+List<SearchResult> searchEnglish(
   List<DictEntry> entries,
   String rawQuery,
   WordIndex index,
@@ -212,33 +313,75 @@ List<SearchResult> _searchEnglish(
   final words = rawQuery.toLowerCase().trim().split(RegExp(r'\s+'));
   if (words.isEmpty || words.first.isEmpty) return [];
 
-  final seen = <DictEntry>{};
+  final postings = [for (final w in words.toSet()) index.postingsFor(w)];
+  final entryLists = [for (final p in postings) _entryIds(p)];
+
+  final seen = Uint8List(entries.length);
   final results = <SearchResult>[];
 
-  void pass(int tier, bool Function(int i) match) {
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      if (seen.contains(entry)) continue;
-      if (match(i)) {
-        seen.add(entry);
-        results.add(SearchResult(entry: entry, tier: tier));
-      }
+  void emit(int tier, Iterable<int> ids) {
+    for (final i in ids) {
+      if (seen[i] != 0) continue;
+      seen[i] = 1;
+      results.add(SearchResult(entry: entries[i], tier: tier));
     }
   }
 
-    // Tier 0: all query words present in a single definition's word set.
-  pass(0, (i) => index.perDef[i].any((s) => words.every(s.contains)));
+  // Tier 0: all query words present in a single definition.
+  emit(0, _entryIds(_intersect(postings)));
 
   // Tier 1: all query words present across all definitions combined.
-  pass(1, (i) => words.every(index.combined[i].contains));
+  emit(1, _intersect(entryLists));
 
   // Tier 2: any query word present as a whole word in any definition.
-  pass(2, (i) => words.any(index.combined[i].contains));
+  emit(2, _union(entryLists));
 
   // Tier 3: any query word as a substring in the normalized combined string.
-  pass(3, (i) => words.any(index.normStr[i].contains));
+  for (var i = 0; i < entries.length; i++) {
+    if (seen[i] == 0 && words.any(index.normStr[i].contains)) emit(3, [i]);
+  }
 
   return results;
+}
+
+/// Distinct entry ids of ascending [postings], ascending.
+List<int> _entryIds(List<int> postings) {
+  final ids = <int>[];
+  for (final p in postings) {
+    final id = p >> _defBits;
+    if (ids.isEmpty || ids.last != id) ids.add(id);
+  }
+  return ids;
+}
+
+/// Values present in every one of the ascending [lists], ascending.
+List<int> _intersect(List<List<int>> lists) {
+  final sorted = [...lists]..sort((a, b) => a.length.compareTo(b.length));
+  var acc = sorted.first;
+  for (final other in sorted.skip(1)) {
+    final next = <int>[];
+    var j = 0;
+    for (final v in acc) {
+      while (j < other.length && other[j] < v) {
+        j++;
+      }
+      if (j == other.length) break;
+      if (other[j] == v) next.add(v);
+    }
+    acc = next;
+  }
+  return acc;
+}
+
+/// Values present in any of the ascending [lists], ascending and distinct.
+List<int> _union(List<List<int>> lists) {
+  if (lists.length == 1) return lists.first;
+  final all = [for (final l in lists) ...l]..sort();
+  final out = <int>[];
+  for (final v in all) {
+    if (out.isEmpty || out.last != v) out.add(v);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
