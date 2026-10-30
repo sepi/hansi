@@ -47,7 +47,7 @@ class _SearchSectionState extends State<SearchSection> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: ValueListenableBuilder<TextEditingValue>(
             valueListenable: widget.controller,
             builder: (_, value, _) => TextField(
@@ -58,6 +58,8 @@ class _SearchSectionState extends State<SearchSection> {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Search…',
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 prefixIcon: IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: () =>
