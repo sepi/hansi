@@ -1,0 +1,7 @@
+First release.
+
+• Search by characters, pinyin (tones optional, v for ü) or English, ranked by match quality and word frequency
+• Stroke order, character decomposition and old HSK 1–6 levels
+• Example sentences with tap-to-search, pinyin and English
+• Text-to-speech and AnkiDroid export
+• Fully offline, no tracking

@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE"/>
     <application
-        android:label="hansi"
+        android:label="Hansi"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -5,6 +5,15 @@ Flutter. Search by characters, pinyin (with or without tones) or English;
 see stroke order, character decomposition and example sentences; send words
 to AnkiDroid.
 
+## Text-to-speech
+
+"Listen" uses Android's system text-to-speech engine; Hansi ships no voice
+of its own. You need an engine with a Chinese (Mandarin) voice, which many
+de-Googled phones lack. Free options on F-Droid include **ChineseTtsTflite**
+and **SherpaTTS** (install its Chinese language pack). Pick the engine under
+*Settings → System → Languages → Text-to-speech output* and test it there
+with "Play"; if that is silent in Chinese, Hansi will be too.
+
 ## License
 
 The app's source code is licensed under the GNU Affero General Public License
