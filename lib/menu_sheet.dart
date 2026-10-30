@@ -386,11 +386,12 @@ class AboutDialog extends StatelessWidget {
                     ),
                     section(
                       'HSK Vocabulary (旧版 2010)',
-                      'Level tags (旧HSK 1–4) follow the 2010 Hanban/CIE standard, '
-                      'covering ~535 multi-character words. Single characters and '
-                      'HSK 5–6 are not tagged. The 2021 revision (新HSK 3.0) is '
-                      'not included.\n'
-                      'Source: Hanban/CIE official HSK 2010 curriculum (public).',
+                      'Level tags (旧HSK 1–6) follow the 2010 HSK 2.0 standard, '
+                      'covering about 5,000 words. The 2021 revision (新HSK 3.0) '
+                      'is not included.\n'
+                      'Word lists from complete-hsk-vocabulary by Yanis '
+                      'Zafirópulos. MIT License.\n'
+                      'https://github.com/drkameleon/complete-hsk-vocabulary',
                     ),
                     section(
                       'Example Sentences',

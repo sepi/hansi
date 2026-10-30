@@ -48,11 +48,16 @@ Future<Map<String, int>> loadFrequency(ProgressCallback onProgress) async {
   final raw = await Future(() => GZipDecoder().decodeBytes(compressed));
   onProgress(0.6);
 
-  final map = await Future(() => _parseFreq(utf8.decode(raw)));
+  final map = await Future(() => parseNumberedWords(utf8.decode(raw)));
   onProgress(1.0);
 
   return map;
 }
+
+/// Old HSK level per simplified word; same `number<TAB>word` format as the
+/// frequency list.
+Future<Map<String, int>> loadHskLevels() async =>
+    parseNumberedWords(await rootBundle.loadString('assets/hsk_levels.tsv'));
 
 Future<WordIndex> loadWordIndex(
   List<DictEntry> entries,
@@ -163,7 +168,9 @@ Future<List<ExampleSentence>> loadExampleSentences(
   return sentences;
 }
 
-Map<String, int> _parseFreq(String text) {
+/// Parses `number<TAB>word` lines into word → number; other lines, such as
+/// `#` comments, are skipped.
+Map<String, int> parseNumberedWords(String text) {
   final map = <String, int>{};
   for (final line in text.split('\n')) {
     final tab = line.indexOf('\t');

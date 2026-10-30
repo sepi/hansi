@@ -48,11 +48,13 @@ class _DictLoaderState extends State<DictLoader> {
   // Static cache survives Android activity recreation when the Dart VM stays
   // alive, avoiding a full reload on brief focus loss.
   static SearchWorker? _cachedWorker;
+  static Map<String, int> _cachedHskLevels = const {};
   static Map<String, String> _cachedStrokeData = const {};
   static Map<String, MmaEntry> _cachedMmaData = const {};
   static SentenceData _cachedSentenceData = SentenceData.empty;
 
   SearchWorker? _worker;
+  Map<String, int> _hskLevels = const {};
   Map<String, String> _strokeData = const {};
   Map<String, MmaEntry> _mmaData = const {};
   SentenceData _sentenceData = SentenceData.empty;
@@ -72,6 +74,7 @@ class _DictLoaderState extends State<DictLoader> {
     if (_cachedWorker != null) {
       // Dart VM still alive — reuse previously loaded data instantly.
       _worker = _cachedWorker;
+      _hskLevels = _cachedHskLevels;
       _strokeData = _cachedStrokeData;
       _mmaData = _cachedMmaData;
       _sentenceData = _cachedSentenceData;
@@ -111,9 +114,11 @@ class _DictLoaderState extends State<DictLoader> {
       final phase1 = await Future.wait([
         loadCedict((p) => _report('Loading dictionary', p)),
         loadFrequency((p) => _report('Loading frequency data', p)),
+        loadHskLevels(),
       ]);
       final entries = phase1[0] as List<DictEntry>;
       final freqMap = phase1[1] as Map<String, int>;
+      final hskLevels = phase1[2] as Map<String, int>;
 
       final wordIndex =
           await loadWordIndex(entries, (p) => _report('Building index', p));
@@ -123,10 +128,17 @@ class _DictLoaderState extends State<DictLoader> {
       final worker = await SearchWorker.create(
         entries: entries,
         freqMap: freqMap,
+        hskLevels: hskLevels,
         wordIndex: wordIndex,
       );
       _cachedWorker = worker;
-      if (mounted) setState(() => _worker = worker);
+      _cachedHskLevels = hskLevels;
+      if (mounted) {
+        setState(() {
+          _worker = worker;
+          _hskLevels = hskLevels;
+        });
+      }
 
       // Phase 2 — stroke and etymology data loaded in the background.
       // The home page is already visible; widgets degrade gracefully until
@@ -192,6 +204,7 @@ class _DictLoaderState extends State<DictLoader> {
     }
     return HomePage(
       worker: _worker!,
+      hskLevels: _hskLevels,
       strokeData: _strokeData,
       mmaData: _mmaData,
       sentenceData: _sentenceData,

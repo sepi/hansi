@@ -8,7 +8,6 @@ import 'decomposition_tree.dart';
 import 'example_sentence.dart';
 import 'highlight.dart';
 import 'dict_entry.dart';
-import 'hsk.dart';
 import 'mma_entry.dart';
 import 'pinyin_utils.dart';
 import 'search.dart';
@@ -23,6 +22,7 @@ class ResultsTable extends StatefulWidget {
     required this.font,
     required this.toneColors, // null = disabled
     required this.showTraditional,
+    required this.hskLevels,
     required this.strokeData,
     required this.mmaData,
     required this.strokeSpeed,
@@ -36,6 +36,8 @@ class ResultsTable extends StatefulWidget {
   final HanziFont font;
   final List<Color>? toneColors;
   final bool showTraditional;
+  /// Old HSK level per simplified word, for the level chip.
+  final Map<String, int> hskLevels;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
   final double strokeSpeed;
@@ -168,7 +170,8 @@ class _ResultsTableState extends State<ResultsTable> {
     final entry = widget.results[i].entry;
     final expanded = _expandedIndex == i;
     final hanzi = widget.showTraditional ? entry.traditional : entry.simplified;
-    final hskLvl = _hskLevel(entry);
+    final hskLvl =
+        widget.hskLevels[entry.simplified] ?? widget.hskLevels[entry.traditional];
     final pinyin = toUnicodePinyin(entry.pinyin);
     final english = entry.definitions.join('; ');
 
@@ -434,9 +437,6 @@ class _EntryMenu extends StatelessWidget {
 const _kHskBg = Color(0xFFBBDEFB); // blue[100]
 const _kHskFg = Color(0xFF1565C0); // blue[800]
 
-int? _hskLevel(DictEntry e) =>
-    kHskLevel[e.simplified] ?? kHskLevel[e.traditional];
-
 class _HskChip extends StatelessWidget {
   const _HskChip({required this.level});
   final int level;
@@ -444,7 +444,7 @@ class _HskChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Old HSK standard (2010, levels 1–4)',
+      message: 'Old HSK standard (2010, levels 1–6)',
       child: Container(
         margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

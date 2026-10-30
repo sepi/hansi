@@ -18,6 +18,7 @@ class SearchPage extends StatefulWidget {
     super.key,
     required this.initialQuery,
     required this.worker,
+    required this.hskLevels,
     required this.strokeData,
     required this.mmaData,
     required this.sentenceData,
@@ -34,6 +35,7 @@ class SearchPage extends StatefulWidget {
 
   final String initialQuery;
   final SearchWorker worker;
+  final Map<String, int> hskLevels;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
   final SentenceData sentenceData;
@@ -135,6 +137,7 @@ class _SearchPageState extends State<SearchPage> {
       builder: (_) => SearchPage(
         initialQuery: q,
         worker: widget.worker,
+        hskLevels: widget.hskLevels,
         strokeData: widget.strokeData,
         mmaData: widget.mmaData,
         sentenceData: widget.sentenceData,
@@ -200,6 +203,7 @@ class _SearchPageState extends State<SearchPage> {
                   font: widget.font,
                   toneColors: widget.toneColors,
                   showTraditional: widget.showTraditional,
+                  hskLevels: widget.hskLevels,
                   strokeData: widget.strokeData,
                   mmaData: widget.mmaData,
                   strokeSpeed: widget.strokeSpeed,

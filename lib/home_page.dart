@@ -21,12 +21,14 @@ class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.worker,
+    required this.hskLevels,
     required this.strokeData,
     required this.mmaData,
     required this.sentenceData,
   });
 
   final SearchWorker worker;
+  final Map<String, int> hskLevels;
   final Map<String, String> strokeData;
   final Map<String, MmaEntry> mmaData;
   final SentenceData sentenceData;
@@ -259,6 +261,7 @@ class _HomePageState extends State<HomePage> {
                   font: _font,
                   toneColors: _toneColors,
                   showTraditional: _showTraditional,
+                  hskLevels: widget.hskLevels,
                   strokeData: widget.strokeData,
                   mmaData: widget.mmaData,
                   strokeSpeed: _strokeSpeed,
@@ -267,6 +270,7 @@ class _HomePageState extends State<HomePage> {
                       builder: (_) => SearchPage(
                         initialQuery: q,
                         worker: widget.worker,
+                        hskLevels: widget.hskLevels,
                         strokeData: widget.strokeData,
                         mmaData: widget.mmaData,
                         sentenceData: widget.sentenceData,

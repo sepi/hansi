@@ -29,6 +29,7 @@ void main() {
           font: HanziFont.sans,
           toneColors: null,
           showTraditional: false,
+          hskLevels: const {'老师': 1},
           strokeData: const {},
           mmaData: const {},
           strokeSpeed: 1,

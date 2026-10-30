@@ -9,21 +9,30 @@ class SearchWorker {
   SearchWorker._({
     required List<DictEntry> entries,
     required Map<String, int> freqMap,
+    required Map<String, int> hskLevels,
     required search_lib.WordIndex wordIndex,
   })  : _entries = entries,
         _freqMap = freqMap,
+        _hskLevels = hskLevels,
         _wordIndex = wordIndex;
 
   final List<DictEntry> _entries;
   final Map<String, int> _freqMap;
+  final Map<String, int> _hskLevels;
   final search_lib.WordIndex _wordIndex;
 
   static Future<SearchWorker> create({
     required List<DictEntry> entries,
     required Map<String, int> freqMap,
+    required Map<String, int> hskLevels,
     required search_lib.WordIndex wordIndex,
   }) async =>
-      SearchWorker._(entries: entries, freqMap: freqMap, wordIndex: wordIndex);
+      SearchWorker._(
+        entries: entries,
+        freqMap: freqMap,
+        hskLevels: hskLevels,
+        wordIndex: wordIndex,
+      );
 
   Future<List<search_lib.SearchResult>> search(
     String query, {
@@ -38,6 +47,7 @@ class SearchWorker {
             pinyin: pinyin,
             english: english,
             freqMap: _freqMap,
+            hskLevels: _hskLevels,
             wordIndex: _wordIndex,
           ));
 

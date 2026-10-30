@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'dict_entry.dart';
-import 'hsk.dart';
 import 'pinyin_utils.dart';
 
 // ---------------------------------------------------------------------------
@@ -212,6 +211,7 @@ List<SearchResult> search(
   required bool pinyin,
   required bool english,
   Map<String, int> freqMap = const {},
+  Map<String, int> hskLevels = const {},
   required WordIndex wordIndex,
   RankingWeights weights = const RankingWeights(),
 }) {
@@ -233,7 +233,8 @@ List<SearchResult> search(
       (i: i, result: SearchResult(
         entry: entries[i],
         quality: q,
-        score: _score(entries[i], q, freqMap, homographDefs, weights),
+        score: _score(
+            entries[i], q, freqMap, hskLevels, homographDefs, weights),
       )),
   ]..sort((a, b) {
       final s = b.result.score.compareTo(a.result.score);
@@ -250,6 +251,7 @@ double _score(
   DictEntry e,
   double quality,
   Map<String, int> freqMap,
+  Map<String, int> hskLevels,
   Map<String, int> homographDefs,
   RankingWeights w,
 ) {
@@ -260,18 +262,21 @@ double _score(
   var share = math.min(1.0, e.definitions.length / most);
   if (_isProperNoun(e)) share *= 0.5;
   return w.quality * quality +
-      w.commonness * _commonness(e, freqMap) * share +
+      w.commonness * _commonness(e, freqMap, hskLevels) * share +
       w.shortness / e.simplified.length;
 }
 
-/// 0–1: 1 for the most frequent words and HSK level 1, 0 for unranked.
-double _commonness(DictEntry e, Map<String, int> freqMap) {
+/// 0–1: 1 for the most frequent words, 0 for unranked. An HSK level alone
+/// gives at most 0.8, so being on a learner list does not outweigh being
+/// a much better match.
+double _commonness(
+    DictEntry e, Map<String, int> freqMap, Map<String, int> hskLevels) {
   final rank = freqMap[e.simplified] ?? freqMap[e.traditional];
   final byFreq = rank == null
       ? 0.0
       : (1 - math.log(rank) / math.log(100000)).clamp(0.0, 1.0);
-  final level = kHskLevel[e.simplified] ?? kHskLevel[e.traditional];
-  final byHsk = level == null ? 0.0 : 1 - (level - 1) / 6;
+  final level = hskLevels[e.simplified] ?? hskLevels[e.traditional];
+  final byHsk = level == null ? 0.0 : 0.8 - 0.1 * (level - 1);
   return math.max(byFreq, byHsk);
 }
 
@@ -453,7 +458,7 @@ double _englishQuality(
         ? 0.7
         : def.contains('(bound form)') ? 0.9 : 1.0;
     // Earlier definitions are the main senses.
-    final position = 1 - math.min(0.15, 0.04 * d);
+    final position = 1 - math.min(0.2, 0.05 * d);
 
     for (final raw in def.split(';')) {
       final meaning = raw.trim();

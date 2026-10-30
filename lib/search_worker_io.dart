@@ -26,6 +26,7 @@ class SearchWorker {
   static Future<SearchWorker> create({
     required List<DictEntry> entries,
     required Map<String, int> freqMap,
+    required Map<String, int> hskLevels,
     required WordIndex wordIndex,
   }) async {
     final fromIsolate = ReceivePort();
@@ -33,7 +34,12 @@ class SearchWorker {
     final stream = fromIsolate.asBroadcastStream();
 
     final toIsolate = await stream.first as SendPort;
-    toIsolate.send((entries: entries, freqMap: freqMap, wordIndex: wordIndex));
+    toIsolate.send((
+      entries: entries,
+      freqMap: freqMap,
+      hskLevels: hskLevels,
+      wordIndex: wordIndex,
+    ));
 
     final worker = SearchWorker._(
       toIsolate: toIsolate,
@@ -79,6 +85,7 @@ void _workerMain(SendPort toMain) {
 
   List<DictEntry>? entries;
   Map<String, int>? freqMap;
+  Map<String, int>? hskLevels;
   WordIndex? wordIndex;
 
   fromMain.listen((msg) {
@@ -86,10 +93,12 @@ void _workerMain(SendPort toMain) {
       final init = msg as ({
         List<DictEntry> entries,
         Map<String, int> freqMap,
+        Map<String, int> hskLevels,
         WordIndex wordIndex,
       });
       entries = init.entries;
       freqMap = init.freqMap;
+      hskLevels = init.hskLevels;
       wordIndex = init.wordIndex;
       return;
     }
@@ -107,6 +116,7 @@ void _workerMain(SendPort toMain) {
       pinyin: q.pinyin,
       english: q.english,
       freqMap: freqMap!,
+      hskLevels: hskLevels!,
       wordIndex: wordIndex!,
     );
     toMain.send((id: q.id, results: results));

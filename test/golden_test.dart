@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hansi/asset_loader.dart';
 import 'package:hansi/cedict_parser.dart';
 import 'package:hansi/dict_entry.dart';
 import 'package:hansi/search.dart';
@@ -19,13 +20,9 @@ String _gz(String path) =>
 
 void main() {
   final entries = parseCedict(_gz('assets/cedict.txt.gz'));
-  final freq = <String, int>{};
-  for (final line in _gz('assets/word_freq.tsv.gz').split('\n')) {
-    final tab = line.indexOf('\t');
-    if (tab == -1) continue;
-    final rank = int.tryParse(line.substring(0, tab));
-    if (rank != null) freq[line.substring(tab + 1).trim()] = rank;
-  }
+  final freq = parseNumberedWords(_gz('assets/word_freq.tsv.gz'));
+  final hsk =
+      parseNumberedWords(File('assets/hsk_levels.tsv').readAsStringSync());
   final index = buildWordIndex(entries);
   final cases = (jsonDecode(File('test/golden_queries.json').readAsStringSync())
           as List)
@@ -33,7 +30,7 @@ void main() {
 
   List<DictEntry> run(String q) => search(entries, q,
           hanzi: true, pinyin: true, english: true,
-          freqMap: freq, wordIndex: index)
+          freqMap: freq, hskLevels: hsk, wordIndex: index)
       .map((r) => r.entry)
       .toList();
 
