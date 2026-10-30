@@ -33,7 +33,7 @@ void main() {
     final results = search(entries, query,
         hanzi: hanzi, pinyin: pinyin, english: english, wordIndex: index);
     final top = results.take(5).map((r) =>
-      '${r.entry.simplified}[${r.entry.pinyin}](tier${r.tier})').join('  ');
+      '${r.entry.simplified}[${r.entry.pinyin}](q=${r.quality.toStringAsFixed(2)})').join('  ');
     print('  "$query" → $top');
   }
 

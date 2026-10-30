@@ -24,7 +24,7 @@ void main() {
       home: Scaffold(
         body: ResultsTable(
           results: [
-            for (final e in entries) SearchResult(entry: e, tier: 0),
+            for (final e in entries) SearchResult(entry: e, quality: 1, score: 1),
           ],
           font: HanziFont.sans,
           toneColors: null,
