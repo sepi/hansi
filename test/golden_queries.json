@@ -60,5 +60,6 @@
   {"query": "nü", "expect": "女", "within": 1},
   {"query": "nv3", "expect": "女", "within": 1},
   {"query": "lvse", "expect": "绿色", "within": 1},
-  {"query": "nu", "expect": "女", "within": 5}
+  {"query": "nu", "expect": "女", "within": 5},
+  {"query": "love", "expect": "爱", "within": 1}
 ]

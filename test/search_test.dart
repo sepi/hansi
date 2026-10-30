@@ -352,6 +352,34 @@ void main() {
   // Mode gating
   // ---------------------------------------------------------------------------
 
+  group('Score explanation', () {
+    test('explains the same score that search ranked by', () {
+      for (final q in ['to speak', 'ni', '你', 'univer', 'hao3']) {
+        for (final r in _search(q, hanzi: true, pinyin: true, english: true)) {
+          final ex = explainScore(_corpus, r.entry, q,
+              freqMap: _freq, wordIndex: _corpusIndex)!;
+          expect(ex.score, closeTo(r.score, 1e-12), reason: '$q $ex');
+          expect(ex.quality, closeTo(r.quality, 1e-12), reason: '$q $ex');
+        }
+      }
+    });
+
+    test('names the factors of an English match', () {
+      final ex = explainScore(_corpus, _corpus.firstWhere(
+          (e) => e.simplified == '说'), 'to speak',
+          freqMap: _freq, wordIndex: _corpusIndex)!;
+      expect(ex.mode, 'english');
+      expect(ex.qualityFactors.first, ('exact', 1.0));
+      expect(ex.toString(), contains('score'));
+    });
+
+    test('returns null for an entry the query does not match', () {
+      final ex = explainScore(_corpus, _corpus.first, 'xyzzy',
+          wordIndex: _corpusIndex);
+      expect(ex, isNull);
+    });
+  });
+
   group('Mode gating', () {
     test('all modes off returns nothing', () {
       expect(

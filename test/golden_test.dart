@@ -37,6 +37,11 @@ void main() {
   int rankOf(List<DictEntry> results, String word) =>
       results.indexWhere((e) => e.simplified == word);
 
+  /// Score breakdown of [e] for [q], for failure messages.
+  String why(DictEntry e, String q) =>
+      '\n  ${e.simplified} [${e.pinyin}]: ${explainScore(entries, e, q,
+          freqMap: freq, hskLevels: hsk, wordIndex: index)}';
+
   for (final c in cases) {
     final q = c['query'] as String;
     final expect_ = c['expect'] as String;
@@ -50,13 +55,20 @@ void main() {
       final results = run(q);
       final top = results.take(5).map((e) => e.simplified).join(' ');
       final rank = rankOf(results, expect_);
+      // Breakdowns of the expected entry and of the one ranked first.
+      final explain = [
+        if (results.isNotEmpty) why(results.first, q),
+        if (rank > 0) why(results[rank], q),
+      ].join();
       if (within != null) {
         expect(rank, allOf(greaterThanOrEqualTo(0), lessThan(within)),
-            reason: '$expect_ at ${rank < 0 ? 'none' : rank + 1}; top: $top');
+            reason: '$expect_ at ${rank < 0 ? 'none' : rank + 1}; '
+                'top: $top$explain');
       } else {
         final other = rankOf(results, above!);
         expect(rank >= 0 && (other < 0 || rank < other), isTrue,
-            reason: '$expect_ at ${rank + 1}, $above at ${other + 1}; top: $top');
+            reason: '$expect_ at ${rank + 1}, $above at ${other + 1}; '
+                'top: $top$explain');
       }
     });
   }
