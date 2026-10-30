@@ -80,21 +80,43 @@ final _unicodeToTone = <String, (String, int)>{
 };
 
 String toNumberedPinyin(String unicode) =>
-    unicode.split(' ').map(_syllableToNumbered).join(' ');
+    unicode.split(' ').map(_wordToNumbered).join(' ');
 
-String _syllableToNumbered(String syl) {
-  int? tone;
+bool _isVowel(String c) =>
+    _vowels.contains(c) || _unicodeToTone.containsKey(c);
+
+/// Converts one space-free word, which may hold several syllables
+/// ("nǐhǎo" → "ni3hao3", "kěnéng" → "ke3neng2"). Each tone number goes after
+/// the syllable's final: the vowels after the marked one, then n, ng or r
+/// unless that consonant starts the next syllable.
+String _wordToNumbered(String word) {
+  final chars = [for (final r in word.runes) String.fromCharCode(r)];
+  bool vowelAt(int k) => k < chars.length && _isVowel(chars[k]);
   final buf = StringBuffer();
-  for (final rune in syl.runes) {
-    final char = String.fromCharCode(rune);
-    final entry = _unicodeToTone[char];
-    if (entry != null) {
-      buf.write(entry.$1);
-      tone = entry.$2;
-    } else {
-      buf.write(char);
+  var i = 0;
+  while (i < chars.length) {
+    final entry = _unicodeToTone[chars[i]];
+    i++;
+    if (entry == null) {
+      buf.write(chars[i - 1]);
+      continue;
     }
+    buf.write(entry.$1);
+    while (i < chars.length && _vowels.contains(chars[i])) {
+      buf.write(chars[i++]);
+    }
+    if (i + 1 < chars.length &&
+        chars[i] == 'n' &&
+        chars[i + 1] == 'g' &&
+        !vowelAt(i + 2)) {
+      buf.write('ng');
+      i += 2;
+    } else if (i < chars.length &&
+        (chars[i] == 'n' || chars[i] == 'r') &&
+        !vowelAt(i + 1)) {
+      buf.write(chars[i++]);
+    }
+    buf.write(entry.$2);
   }
-  if (tone != null) buf.write(tone);
   return buf.toString();
 }
