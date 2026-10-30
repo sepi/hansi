@@ -62,6 +62,8 @@ class _SearchPageState extends State<SearchPage> {
   bool _searching = false;
   int _searchId = 0;
   List<SearchResult> _results = [];
+  // The query [_results] were computed for, which can lag the text field.
+  String _resultsQuery = '';
 
   @override
   void initState() {
@@ -121,7 +123,11 @@ class _SearchPageState extends State<SearchPage> {
         if (mounted) setState(() {});
       });
     }
-    setState(() { _searching = false; _results = results; });
+    setState(() {
+      _searching = false;
+      _results = results;
+      _resultsQuery = query;
+    });
   }
 
   void _onSearch(String q) {
@@ -200,6 +206,7 @@ class _SearchPageState extends State<SearchPage> {
                   onSearch: _onSearch,
                   ankiInstalled: widget.ankiInstalled,
                   sentenceData: widget.sentenceData,
+                  highlightQuery: _searchEnglish ? _resultsQuery : '',
                 ),
               )
             else if (_controller.text.trim().isNotEmpty)

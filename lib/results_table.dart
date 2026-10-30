@@ -6,6 +6,7 @@ import 'anki_service.dart';
 import 'constants.dart';
 import 'decomposition_tree.dart';
 import 'example_sentence.dart';
+import 'highlight.dart';
 import 'dict_entry.dart';
 import 'hsk.dart';
 import 'mma_entry.dart';
@@ -28,6 +29,7 @@ class ResultsTable extends StatefulWidget {
     required this.onSearch,
     required this.ankiInstalled,
     required this.sentenceData,
+    this.highlightQuery = '',
   });
 
   final List<SearchResult> results;
@@ -40,6 +42,9 @@ class ResultsTable extends StatefulWidget {
   final void Function(String query) onSearch;
   final bool ankiInstalled;
   final SentenceData sentenceData;
+
+  /// Query whose words are bolded in the English definitions; empty for none.
+  final String highlightQuery;
 
   @override
   State<ResultsTable> createState() => _ResultsTableState();
@@ -181,45 +186,40 @@ class _ResultsTableState extends State<ResultsTable> {
                   flex: 2,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 10),
-                    child: hanziPinyinGrid(
-                      context,
-                      hanzi,
-                      entry.pinyin,
-                      TextStyle(fontFamily: widget.font.family, fontSize: 26),
-                      TextStyle(fontFamily: 'GentiumPlus', fontSize: 12),
-                      toneColors: widget.toneColors,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        hanziPinyinGrid(
+                          context,
+                          hanzi,
+                          entry.pinyin,
+                          TextStyle(fontFamily: widget.font.family, fontSize: 26),
+                          TextStyle(fontFamily: 'GentiumPlus', fontSize: 12),
+                          toneColors: widget.toneColors,
+                        ),
+                        if (hskLvl != null) _HskChip(level: hskLvl),
+                      ],
                     ),
                   ),
                 ),
                 Expanded(
                   flex: 3,
-                  child: Text(
-                    _numberedDefs(entry.definitions),
+                  child: Text.rich(
+                    TextSpan(
+                      children: highlightWords(
+                        _numberedDefs(entry.definitions),
+                        widget.highlightQuery,
+                      ),
+                    ),
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
-                SizedBox(
-                  width: 74,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: _EntryMenu(
-                          hanzi: hanzi,
-                          pinyin: pinyin,
-                          english: english,
-                          traditional: widget.showTraditional,
-                          ankiInstalled: widget.ankiInstalled,
-                        ),
-                      ),
-                      Opacity(
-                        opacity: hskLvl != null ? 1.0 : 0.0,
-                        child: _HskChip(level: hskLvl ?? 1),
-                      ),
-                    ],
-                  ),
+                _EntryMenu(
+                  hanzi: hanzi,
+                  pinyin: pinyin,
+                  english: english,
+                  traditional: widget.showTraditional,
+                  ankiInstalled: widget.ankiInstalled,
                 ),
               ],
             ),
@@ -326,19 +326,15 @@ class _TtsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: IconButton(
-        icon: const Icon(Icons.volume_up_outlined),
-        iconSize: 26,
-        color: Colors.grey.shade500,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-        style: const ButtonStyle(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-        tooltip: 'Listen',
-        onPressed: () => TtsService.instance.speak(text, traditional: traditional),
-      ),
+    return IconButton(
+      icon: const Icon(Icons.volume_up_outlined),
+      iconSize: 22,
+      color: Colors.grey.shade500,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      style: const ButtonStyle(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+      tooltip: 'Listen',
+      onPressed: () => TtsService.instance.speak(text, traditional: traditional),
     );
   }
 }
@@ -393,8 +389,13 @@ class _EntryMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_EntryAction>(
-      icon: Icon(Icons.more_vert, color: Colors.grey.shade500),
+      // A plain child instead of `icon:` keeps the button at its 32px
+      // content size rather than the 48px Material minimum.
       tooltip: 'More',
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: Icon(Icons.more_vert, size: 22, color: Colors.grey.shade500),
+      ),
       onSelected: (action) {
         switch (action) {
           case _EntryAction.listen:
@@ -445,7 +446,7 @@ class _HskChip extends StatelessWidget {
     return Tooltip(
       message: 'Old HSK standard (2010, levels 1–4)',
       child: Container(
-        margin: const EdgeInsets.only(left: 6, top: 2),
+        margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
           color: _kHskBg,
