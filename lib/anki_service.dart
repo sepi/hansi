@@ -6,7 +6,7 @@ class AnkiService {
   AnkiService._();
   static final AnkiService instance = AnkiService._();
 
-  static const _ch = MethodChannel('com.example.hansi/anki');
+  static const _ch = MethodChannel('lu.mancini.hansi/anki');
 
   Future<bool> get isInstalled async {
     try {

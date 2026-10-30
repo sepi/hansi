@@ -1,4 +1,4 @@
-package com.example.hansi
+package lu.mancini.hansi
 
 import android.content.ContentValues
 import android.content.pm.PackageManager
@@ -11,7 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "com.example.hansi/anki"
+    private val channelName = "lu.mancini.hansi/anki"
     private val ankiAuthority = "com.ichi2.anki.flashcards"
     private val ankiPermission = "com.ichi2.anki.permission.READ_WRITE_DATABASE"
     private val permissionRequestCode = 0xA32
