@@ -5,7 +5,6 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hansi/cedict_parser.dart';
 import 'package:hansi/dict_entry.dart';
-import 'package:hansi/hsk.dart';
 import 'package:hansi/search.dart';
 
 // ---------------------------------------------------------------------------
@@ -71,25 +70,20 @@ void main() {
       expect(_search('', hanzi: true), isEmpty);
     });
 
-    test('finds exact match in tier 0', () {
+    test('exact match has full quality', () {
       final r = _search('你好', hanzi: true);
-      expect(r.any((x) => x.entry.simplified == '你好'), isTrue);
       final hit = r.firstWhere((x) => x.entry.simplified == '你好');
-      expect(hit.tier, 0);
+      expect(hit.quality, 1.0);
     });
 
-    test('startsWith is tier 0, contains-only is tier 1', () {
-      // '你' starts with '你' (tier 0); '你好' also starts with '你' (tier 0).
-      // There is no entry that merely *contains* '你' without starting with it
-      // in this corpus, so just verify tier 0 for both.
+    test('exact match beats startsWith', () {
       final r = _search('你', hanzi: true);
       final nee = r.firstWhere((x) => x.entry.simplified == '你');
       final nihao = r.firstWhere((x) => x.entry.simplified == '你好');
-      expect(nee.tier, 0);
-      expect(nihao.tier, 0);
+      expect(nee.quality, greaterThan(nihao.quality));
     });
 
-    test('contains-only match is tier 1', () {
+    test('contains-only match is weaker than startsWith', () {
       // Add a synthetic entry where '好' is embedded, not at start.
       final extra = DictEntry(
         traditional: '不好', simplified: '不好',
@@ -100,7 +94,13 @@ void main() {
           hanzi: true, pinyin: false, english: false,
           wordIndex: _corpusIndex);
       final buHao = r.firstWhere((x) => x.entry.simplified == '不好');
-      expect(buHao.tier, 1);
+      final haoChi = search([..._corpus, extra, DictEntry(
+        traditional: '好吃', simplified: '好吃',
+        pinyin: 'hao3 chi1', definitions: ['tasty'],
+      )], '好', hanzi: true, pinyin: false, english: false,
+          wordIndex: _corpusIndex)
+          .firstWhere((x) => x.entry.simplified == '好吃');
+      expect(buHao.quality, lessThan(haoChi.quality));
     });
 
     test('traditional fallback: 中國 found by traditional', () {
@@ -113,7 +113,7 @@ void main() {
       expect(_search('你', hanzi: false, pinyin: true, english: true), isEmpty);
     });
 
-    test('tier 0 results appear before tier 1', () {
+    test('exact match ranks before contains-only', () {
       final extra = DictEntry(
         traditional: '不好', simplified: '不好',
         pinyin: 'bu4 hao3', definitions: ['not good'],
@@ -139,17 +139,27 @@ void main() {
       expect(simplified, containsAll(['你', '你好']));
     });
 
-    test('prefix match is tier 0', () {
+    test('exact syllable beats prefix', () {
       final r = _search('ni', pinyin: true);
       final nee = r.firstWhere((x) => x.entry.simplified == '你');
-      expect(nee.tier, 0);
+      final nihao = r.firstWhere((x) => x.entry.simplified == '你好');
+      expect(nee.quality, greaterThan(nihao.quality));
     });
 
-    test('contains-only match is tier 1', () {
+    test('contains-only match is weaker than exact', () {
       // 你好 pinyin: ni3hao3 — 'hao' appears but does not start the string.
       final r = _search('hao', pinyin: true);
+      final hao = r.firstWhere((x) => x.entry.simplified == '好');
       final nihao = r.firstWhere((x) => x.entry.simplified == '你好');
-      expect(nihao.tier, 1);
+      expect(nihao.quality, lessThan(hao.quality));
+    });
+
+    test('toneless match is less certain than toned', () {
+      final toneless = _search('ni', pinyin: true)
+          .firstWhere((x) => x.entry.simplified == '你');
+      final toned = _search('ni3', pinyin: true)
+          .firstWhere((x) => x.entry.simplified == '你');
+      expect(toneless.quality, lessThan(toned.quality));
     });
 
     test('query normalises unicode tones: nǐ → ni3', () {
@@ -163,26 +173,25 @@ void main() {
   });
 
   group('Pinyin search (numbered tones)', () {
-    test('ni3 finds 你 (prefix tier 0)', () {
+    test('ni3 matches 你 exactly', () {
       final r = _search('ni3', pinyin: true);
       final nee = r.firstWhere((x) => x.entry.simplified == '你');
-      expect(nee.tier, 0);
+      expect(nee.quality, 1.0);
     });
 
-    test('ni3 does NOT match 你好 as prefix (ni3hao3 ≠ starts with ni3hao3)', () {
-      // ni3hao3 starts with 'ni3', so 你好 IS a prefix match.
+    test('ni3 matches 你好 as a prefix', () {
+      // 你好 flattened = 'ni3hao3', which starts with 'ni3'.
       final r = _search('ni3', pinyin: true);
       final nihao = r.firstWhere((x) => x.entry.simplified == '你好');
-      // 你好 flattened = 'ni3hao3', which starts with 'ni3' → tier 0
-      expect(nihao.tier, 0);
+      expect(nihao.quality, allOf(greaterThan(0.4), lessThan(1.0)));
     });
 
-    test('hao3 finds 好 as tier 0 and 你好 as tier 1', () {
+    test('hao3: 好 exact, 你好 contains-only', () {
       final r = _search('hao3', pinyin: true);
       final hao = r.firstWhere((x) => x.entry.simplified == '好');
       final nihao = r.firstWhere((x) => x.entry.simplified == '你好');
-      expect(hao.tier, 0);
-      expect(nihao.tier, 1);
+      expect(hao.quality, 1.0);
+      expect(nihao.quality, lessThan(0.7));
     });
 
     test('wildcard ? matches any tone: ni? finds 你 (ni3)', () {
@@ -200,33 +209,45 @@ void main() {
   // English search
   // ---------------------------------------------------------------------------
 
-  group('English search — tier structure', () {
-    test('all words in one definition → tier 0', () {
-      // "to speak" both words appear in the single def of 说 ("to speak; to say")
+  group('English search — match quality', () {
+    test('a meaning equal to the query is an exact match', () {
+      // 说 "to speak; to say" has the meaning "to speak".
       final r = _search('to speak', english: true);
       final shuo = r.firstWhere((x) => x.entry.simplified == '说');
-      expect(shuo.tier, 0);
+      expect(shuo.quality, greaterThan(0.9));
     });
 
-    test('words spread across multiple definitions → tier 1 at most', () {
+    test('a leading "to" is optional', () {
+      final r = _search('speak', english: true);
+      expect(r.first.entry.simplified, anyOf('说', '说话'));
+    });
+
+    test('words spread across meanings is weaker than one meaning', () {
       // 说话 has defs ["to speak", "to say something"].
-      // "speak something" → not all in one def → tier 1 (all across combined).
       final r = _search('speak something', english: true);
       final shuoHua = r.firstWhere((x) => x.entry.simplified == '说话');
-      expect(shuoHua.tier, lessThanOrEqualTo(1));
+      expect(shuoHua.quality, lessThan(0.55));
     });
 
-    test('single whole word match → at most tier 2', () {
-      final r = _search('student', english: true);
-      final xuesheng = r.firstWhere((x) => x.entry.simplified == '学生');
-      expect(xuesheng.tier, lessThanOrEqualTo(2));
+    test('exact meaning beats a meaning that only contains the word', () {
+      final extra = DictEntry(
+        traditional: '學生會', simplified: '学生会', pinyin: 'xue2 sheng1 hui4',
+        definitions: ['student union'],
+      );
+      final entries = [..._corpus, extra];
+      final r = search(entries, 'student',
+          hanzi: false, pinyin: false, english: true,
+          wordIndex: buildWordIndex(entries));
+      final exact = r.firstWhere((x) => x.entry.simplified == '学生');
+      final phrase = r.firstWhere((x) => x.entry.simplified == '学生会');
+      expect(exact.quality, greaterThan(phrase.quality));
     });
 
-    test('substring match only → tier 3', () {
+    test('substring-only match has the lowest quality', () {
       // "univer" is not a whole word but is a substring of "university".
       final r = _search('univer', english: true);
       final daxue = r.firstWhere((x) => x.entry.simplified == '大学');
-      expect(daxue.tier, 3);
+      expect(daxue.quality, lessThan(0.25));
     });
 
     test('no match returns nothing', () {
@@ -248,19 +269,17 @@ void main() {
       expect(simplified, containsAll(['漂亮', '美丽']));
     });
 
-    test('"pretty beautiful" finds 漂亮 at tier 0 (both words in one def)', () {
+    test('"pretty beautiful" finds 漂亮 (words in separate meanings)', () {
       final r = _search('pretty beautiful', english: true);
-      final piaoliang = r.firstWhere((x) => x.entry.simplified == '漂亮');
-      expect(piaoliang.tier, 0);
+      expect(r.first.entry.simplified, '漂亮');
     });
 
-    test('whole-word boundary: "pretty" does not match "prettily" at tier 0/1', () {
+    test('whole-word boundary: "pretty" matches "prettily" only as substring', () {
       // 漂 has def "prettily coloured" — "pretty" as a whole word should NOT match it.
       final r = _search('pretty', english: true);
       final piao = r.where((x) => x.entry.simplified == '漂');
-      // Either not found, or found only at tier 3 (substring).
       if (piao.isNotEmpty) {
-        expect(piao.first.tier, 3);
+        expect(piao.first.quality, lessThan(0.25));
       }
     });
   });
@@ -270,33 +289,22 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Sorting', () {
-    test('lower tier appears before higher tier', () {
-      // Search "good": 好 (tier 0, "good; well") vs anything with tier > 0.
-      final r = _search('good', english: true);
-      if (r.length >= 2) {
-        // Verify sorted by tier ascending.
-        for (var i = 1; i < r.length; i++) {
-          expect(r[i].tier, greaterThanOrEqualTo(r[i - 1].tier));
-        }
+    test('results are sorted by descending score', () {
+      final r = _search('to', english: true);
+      for (var i = 1; i < r.length; i++) {
+        expect(r[i].score, lessThanOrEqualTo(r[i - 1].score));
       }
     });
 
-    test('within same tier, more frequent word ranks higher', () {
-      // Both 你 (freq 10) and 你好 (unranked) may be tier 0 for "ni".
-      // 你 should appear before 你好.
+    test('equal match quality: more frequent word ranks higher', () {
+      // 你 (freq 10) and 你好 (unranked); 你 should appear first for "ni".
       final r = _search('ni', pinyin: true);
-      final tier0 = r.where((x) => x.tier == 0).toList();
-      final idxNi = tier0.indexWhere((x) => x.entry.simplified == '你');
-      final idxNiHao = tier0.indexWhere((x) => x.entry.simplified == '你好');
-      if (idxNi != -1 && idxNiHao != -1) {
-        expect(idxNi, lessThan(idxNiHao));
-      }
+      final idxNi = r.indexWhere((x) => x.entry.simplified == '你');
+      final idxNiHao = r.indexWhere((x) => x.entry.simplified == '你好');
+      expect(idxNi, lessThan(idxNiHao));
     });
 
-    test('among equally frequent entries, shorter first-def wins', () {
-      // 学生 def "student" (7) vs 大学 def "university; college" (split → "university" = 10).
-      // Both are unranked. 学生 should rank above 大学 when both match.
-      // 大学 is the only hit for 'uni'; the real test uses two synthetic entries.
+    test('equal frequency: entry with fewer senses ranks higher', () {
       final a = DictEntry(
         traditional: 'A', simplified: 'A', pinyin: 'a1', definitions: ['cat'],
       );
@@ -304,22 +312,16 @@ void main() {
         traditional: 'B', simplified: 'B', pinyin: 'b1',
         definitions: ['cat; feline animal'],
       );
-      final entries = [a, b];
+      // B first in the dictionary, so the order is not a tiebreak artifact.
+      final entries = [b, a];
       final results = search(entries, 'cat',
           hanzi: false, pinyin: false, english: true, freqMap: {},
           wordIndex: buildWordIndex(entries));
-      final tier0 = results.where((x) => x.tier == 0).toList();
-      final idxA = tier0.indexWhere((x) => x.entry.simplified == 'A');
-      final idxB = tier0.indexWhere((x) => x.entry.simplified == 'B');
-      // 'cat' (3) < 'cat' from 'cat; feline animal' split → 'cat' (3) — tie.
-      // Both are length 3 after split, so order may be equal; just verify both present.
-      expect(idxA, isNot(-1));
-      expect(idxB, isNot(-1));
+      expect(results.map((x) => x.entry.simplified), ['A', 'B']);
     });
 
-    test('pinyin mode: 好 (freq 20) appears before 你好 (unranked) at tier 1 for "hao"', () {
+    test('pinyin mode: 好 (freq 20) appears before 你好 (unranked) for "hao"', () {
       final r = _search('hao', pinyin: true);
-      // 好 is tier 0 (starts with hao). Verify it appears before unranked 你好.
       final allHao = r.firstWhere((x) => x.entry.simplified == '好');
       final allNiHao = r.firstWhere((x) => x.entry.simplified == '你好');
       expect(r.indexOf(allHao), lessThan(r.indexOf(allNiHao)));
@@ -443,127 +445,6 @@ void main() {
         search(realCorpus, 'ephemeral', hanzi: false, pinyin: false, english: true,
             freqMap: realFreq, wordIndex: realIndex);
       }, 1000);
-    });
-
-    // -------------------------------------------------------------------------
-    // Indexed vs. legacy: same results, indexed is faster
-    // -------------------------------------------------------------------------
-
-    group('Indexed vs legacy English', () {
-      // Legacy implementation (regex-based, verbatim copy of the old code).
-      List<SearchResult> legacy(String rawQuery) {
-        final words = rawQuery.toLowerCase().trim().split(RegExp(r'\s+'));
-        if (words.isEmpty || words.first.isEmpty) return [];
-
-        final res = words.map((w) => RegExp('\\b${RegExp.escape(w)}\\b')).toList();
-
-        List<String> defs(DictEntry e) => e.definitions
-            .map((d) => d.toLowerCase().replaceAll(';', ' '))
-            .toList();
-
-        bool allInOne(List<String> ds) =>
-            ds.any((d) => res.every((re) => re.hasMatch(d)));
-        bool allInAll(List<String> ds) =>
-            res.every((re) => re.hasMatch(ds.join(' ')));
-        bool anyWholeWord(List<String> ds) =>
-            res.any((re) => ds.any(re.hasMatch));
-        bool anySubstring(List<String> ds) =>
-            words.any((w) => ds.any((d) => d.contains(w)));
-
-        final seen = <DictEntry>{};
-        final results = <SearchResult>[];
-
-        void pass(int tier, bool Function(List<String>) match) {
-          for (final entry in realCorpus) {
-            if (seen.contains(entry)) continue;
-            if (match(defs(entry))) {
-              seen.add(entry);
-              results.add(SearchResult(entry: entry, tier: tier));
-            }
-          }
-        }
-
-        pass(0, allInOne);
-        pass(1, allInAll);
-        pass(2, anyWholeWord);
-        pass(3, anySubstring);
-
-        int hsk(DictEntry e) =>
-            kHskLevel[e.simplified] ?? kHskLevel[e.traditional] ?? 99;
-        results.sort((a, b) {
-          final t = a.tier.compareTo(b.tier);
-          if (t != 0) return t;
-          final h = hsk(a.entry).compareTo(hsk(b.entry));
-          if (h != 0) return h;
-          final fa = realFreq[a.entry.simplified] ?? realFreq[a.entry.traditional] ?? 99999;
-          final fb = realFreq[b.entry.simplified] ?? realFreq[b.entry.traditional] ?? 99999;
-          final f = fa.compareTo(fb);
-          if (f != 0) return f;
-          return a.entry.definitions.first.split(';').first.trim().length
-              .compareTo(b.entry.definitions.first.split(';').first.trim().length);
-        });
-
-        return results;
-      }
-
-      List<SearchResult> indexed(String rawQuery) =>
-          search(realCorpus, rawQuery,
-              hanzi: false, pinyin: false, english: true,
-              freqMap: realFreq, wordIndex: realIndex);
-
-      void compare(String query) {
-        test('same results as legacy for "$query"', () {
-          final legacyResults = legacy(query);
-          final indexedResults = indexed(query);
-          expect(indexedResults.length, legacyResults.length,
-              reason: 'result count differs for "$query"');
-          for (var i = 0; i < legacyResults.length; i++) {
-            final leg = legacyResults[i];
-            final idx = indexedResults[i];
-            // Object identity: both searches operate on the same realCorpus list,
-            // so matching entries must be the exact same DictEntry instance.
-            expect(
-              identical(idx.entry, leg.entry),
-              isTrue,
-              reason: 'position $i: indexed="${idx.entry.simplified}" '
-                  'legacy="${leg.entry.simplified}"',
-            );
-            expect(
-              idx.tier,
-              leg.tier,
-              reason: 'tier at position $i (${leg.entry.simplified}) differs',
-            );
-          }
-        });
-      }
-
-      compare('pretty');
-      compare('beautiful');
-      compare('student');
-      compare('university');
-      compare('walk');
-      compare('ephemeral');
-
-      test('indexed is faster than legacy for "to speak"', () {
-        // warm-up
-        legacy('to speak');
-        indexed('to speak');
-
-        final sw1 = Stopwatch()..start();
-        legacy('to speak');
-        sw1.stop();
-
-        final sw2 = Stopwatch()..start();
-        indexed('to speak');
-        sw2.stop();
-
-        // ignore: avoid_print
-        print('  legacy: ${sw1.elapsedMilliseconds} ms  '
-            'indexed: ${sw2.elapsedMilliseconds} ms');
-        expect(sw2.elapsedMilliseconds, lessThan(sw1.elapsedMilliseconds),
-            reason: 'indexed (${sw2.elapsedMilliseconds} ms) should beat '
-                'legacy (${sw1.elapsedMilliseconds} ms)');
-      });
     });
   });
 }

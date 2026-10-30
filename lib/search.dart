@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'dict_entry.dart';
@@ -170,13 +171,40 @@ List<SearchResult> searchIsolate(SearchArgs args) => search(
     );
 
 class SearchResult {
-  const SearchResult({required this.entry, required this.tier});
+  const SearchResult({
+    required this.entry,
+    required this.quality,
+    required this.score,
+  });
   final DictEntry entry;
-  final int tier; // lower = better match quality; meaning varies by search mode
+
+  /// How well the entry matched the query, 0–1, independent of how common
+  /// the entry is. 1.0 is an exact match.
+  final double quality;
+
+  /// Final ranking score; higher ranks first.
+  final double score;
 }
 
-/// Main entry point. Routes to hanzi or pinyin search based on query content,
-/// gated by the [hanzi] and [pinyin] flags from the UI checkboxes.
+/// Weights of the ranking score:
+/// `quality * matchQuality + commonness * commonness + shortness / length`.
+///
+/// Match quality dominates so a common word with a weak match cannot outrank
+/// an exact match; commonness reorders matches of similar quality; shortness
+/// is a tiebreak.
+class RankingWeights {
+  const RankingWeights({
+    this.quality = 1.0,
+    this.commonness = 0.3,
+    this.shortness = 0.05,
+  });
+  final double quality;
+  final double commonness;
+  final double shortness;
+}
+
+/// Main entry point. Each enabled mode reports a match quality per entry;
+/// an entry matched by several modes keeps its best quality.
 List<SearchResult> search(
   List<DictEntry> entries,
   String rawQuery, {
@@ -185,64 +213,107 @@ List<SearchResult> search(
   required bool english,
   Map<String, int> freqMap = const {},
   required WordIndex wordIndex,
+  RankingWeights weights = const RankingWeights(),
 }) {
-  if (rawQuery.isEmpty) return [];
-  final results = <SearchResult>[];
-  final seen = <DictEntry>{};
-  if (hanzi) {
-    for (final r in _searchHanzi(entries, rawQuery)) {
-      if (seen.add(r.entry)) results.add(r);
-    }
+  if (rawQuery.trim().isEmpty) return [];
+  final quality = <int, double>{};
+  void merge(Map<int, double> mode) {
+    mode.forEach((i, q) {
+      if (q > (quality[i] ?? 0)) quality[i] = q;
+    });
   }
-  if (pinyin) {
-    for (final r in _searchPinyin(entries, rawQuery)) {
-      if (seen.add(r.entry)) results.add(r);
+
+  if (hanzi) merge(_searchHanzi(entries, rawQuery));
+  if (pinyin) merge(_searchPinyin(entries, rawQuery));
+  if (english) merge(_searchEnglish(entries, rawQuery, wordIndex));
+
+  final homographDefs = _homographDefs(entries);
+  final ranked = [
+    for (final MapEntry(key: i, value: q) in quality.entries)
+      (i: i, result: SearchResult(
+        entry: entries[i],
+        quality: q,
+        score: _score(entries[i], q, freqMap, homographDefs, weights),
+      )),
+  ]..sort((a, b) {
+      final s = b.result.score.compareTo(a.result.score);
+      return s != 0 ? s : a.i.compareTo(b.i);
+    });
+  return [for (final r in ranked) r.result];
+}
+
+// ---------------------------------------------------------------------------
+// Scoring
+// ---------------------------------------------------------------------------
+
+double _score(
+  DictEntry e,
+  double quality,
+  Map<String, int> freqMap,
+  Map<String, int> homographDefs,
+  RankingWeights w,
+) {
+  // Frequency belongs to the written word, not to one reading of it. The
+  // reading with the most definitions gets it in full, others in proportion;
+  // proper nouns (surname Hong) are names, not what an English search means.
+  final most = homographDefs[e.simplified] ?? e.definitions.length;
+  var share = math.min(1.0, e.definitions.length / most);
+  if (_isProperNoun(e)) share *= 0.5;
+  return w.quality * quality +
+      w.commonness * _commonness(e, freqMap) * share +
+      w.shortness / e.simplified.length;
+}
+
+/// 0–1: 1 for the most frequent words and HSK level 1, 0 for unranked.
+double _commonness(DictEntry e, Map<String, int> freqMap) {
+  final rank = freqMap[e.simplified] ?? freqMap[e.traditional];
+  final byFreq = rank == null
+      ? 0.0
+      : (1 - math.log(rank) / math.log(100000)).clamp(0.0, 1.0);
+  final level = kHskLevel[e.simplified] ?? kHskLevel[e.traditional];
+  final byHsk = level == null ? 0.0 : 1 - (level - 1) / 6;
+  return math.max(byFreq, byHsk);
+}
+
+List<DictEntry>? _homographEntries;
+Map<String, int> _homographTotals = const {};
+
+bool _isProperNoun(DictEntry e) =>
+    e.pinyin.isNotEmpty && e.pinyin[0] != e.pinyin[0].toLowerCase();
+
+/// Largest definition count among the common-noun entries sharing each
+/// simplified form, cached for the last dictionary seen.
+Map<String, int> _homographDefs(List<DictEntry> entries) {
+  if (!identical(entries, _homographEntries)) {
+    final totals = <String, int>{};
+    for (final e in entries) {
+      if (_isProperNoun(e)) continue;
+      totals[e.simplified] =
+          math.max(totals[e.simplified] ?? 0, e.definitions.length);
     }
+    _homographEntries = entries;
+    _homographTotals = totals;
   }
-  if (english) {
-    for (final r in searchEnglish(entries, rawQuery, wordIndex)) {
-      if (seen.add(r.entry)) results.add(r);
-    }
-  }
-  return _sort(results, freqMap);
+  return _homographTotals;
 }
 
 // ---------------------------------------------------------------------------
 // Hanzi search
 // ---------------------------------------------------------------------------
 
-List<SearchResult> _searchHanzi(List<DictEntry> entries, String query) {
-  final seen = <DictEntry>{};
-  final results = <SearchResult>[];
-
-  // Tier 0: exact match — the character/word itself.
-  for (final entry in entries) {
-    if (entry.simplified == query || entry.traditional == query) {
-      seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 0));
+Map<int, double> _searchHanzi(List<DictEntry> entries, String query) {
+  final results = <int, double>{};
+  for (var i = 0; i < entries.length; i++) {
+    final e = entries[i];
+    if (e.simplified == query || e.traditional == query) {
+      results[i] = 1.0;
+    } else if (e.simplified.startsWith(query) ||
+        e.traditional.startsWith(query)) {
+      results[i] = 0.7;
+    } else if (e.simplified.contains(query) || e.traditional.contains(query)) {
+      results[i] = 0.4;
     }
   }
-
-  // Tier 1: starts with (non-exact).
-  for (final entry in entries) {
-    if (seen.contains(entry)) continue;
-    if (entry.simplified.startsWith(query) ||
-        entry.traditional.startsWith(query)) {
-      seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 1));
-    }
-  }
-
-  // Tier 2: contains anywhere (non-prefix).
-  for (final entry in entries) {
-    if (seen.contains(entry)) continue;
-    if (entry.simplified.contains(query) ||
-        entry.traditional.contains(query)) {
-      seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 2));
-    }
-  }
-
   return results;
 }
 
@@ -250,22 +321,23 @@ List<SearchResult> _searchHanzi(List<DictEntry> entries, String query) {
 // Pinyin search
 // ---------------------------------------------------------------------------
 
-List<SearchResult> _searchPinyin(List<DictEntry> entries, String rawQuery) {
+Map<int, double> _searchPinyin(List<DictEntry> entries, String rawQuery) {
   final query = _normalizeQuery(rawQuery);
-  if (query.isEmpty) return [];
+  if (query.isEmpty) return {};
 
   final hasTones = RegExp(r'[1-5?]').hasMatch(query);
 
+  final bool Function(String) exactMatch;
   final bool Function(String) prefixMatch;
   final bool Function(String) containsMatch;
 
   if (hasTones) {
     final pattern = _toRegexPattern(query);
-    final prefixRe = RegExp('^$pattern');
-    final containsRe = RegExp(pattern);
-    prefixMatch = prefixRe.hasMatch;
-    containsMatch = containsRe.hasMatch;
+    exactMatch = RegExp('^$pattern\$').hasMatch;
+    prefixMatch = RegExp('^$pattern').hasMatch;
+    containsMatch = RegExp(pattern).hasMatch;
   } else {
+    exactMatch = (e) => e == query;
     prefixMatch = (e) => e.startsWith(query);
     containsMatch = (e) => e.contains(query);
   }
@@ -278,70 +350,174 @@ List<SearchResult> _searchPinyin(List<DictEntry> entries, String rawQuery) {
     return s;
   }
 
-  final seen = <DictEntry>{};
-  final results = <SearchResult>[];
+  // Without tones a syllable matches many characters, and the query may be
+  // an English word ("run" vs 润 rùn), so the match is less certain.
+  final certainty = hasTones ? 1.0 : 0.85;
 
-  for (final entry in entries) {
-    if (prefixMatch(flatten(entry))) {
-      seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 0));
+  final results = <int, double>{};
+  for (var i = 0; i < entries.length; i++) {
+    final p = flatten(entries[i]);
+    if (exactMatch(p)) {
+      results[i] = certainty;
+    } else if (prefixMatch(p)) {
+      results[i] = 0.7 * certainty;
+    } else if (containsMatch(p)) {
+      results[i] = 0.4 * certainty;
     }
   }
-
-  for (final entry in entries) {
-    if (seen.contains(entry)) continue;
-    if (containsMatch(flatten(entry))) {
-      seen.add(entry);
-      results.add(SearchResult(entry: entry, tier: 1));
-    }
-  }
-
   return results;
 }
 
 // ---------------------------------------------------------------------------
-// English search  (uses precomputed WordIndex — no regex at query time)
+// English search
 // ---------------------------------------------------------------------------
 
-/// Unsorted English matches, grouped by tier and in dictionary order within
-/// each tier. Public so tests can compare it before [search] sorts it.
-List<SearchResult> searchEnglish(
+final _nonWord = RegExp(r'\W+');
+final _bracketed = RegExp(r'\([^)]*\)|\[[^\]]*\]');
+
+/// Words that do not identify a meaning on their own. They still count for
+/// exact and phrase matches ("go to school"), but not for finding candidates.
+const _stopwords = {'to', 'a', 'an', 'the', 'of', 'be', 'sth', 'sb'};
+
+/// Register labels that mark a definition as rare in modern use.
+const _rareLabels = [
+  '(archaic)', '(literary)', '(old)', '(classical)', '(dialect)',
+];
+
+/// Meanings that mention a word without meaning it ("classifier for rivers").
+const _indirectPrefixes = [
+  'classifier for', 'measure word', 'variant of', 'old variant of',
+  'surname', 'used in', 'see ', 'abbr.', 'japanese variant',
+];
+
+List<String> _words(String s) =>
+    s.toLowerCase().split(_nonWord).where((w) => w.isNotEmpty).toList();
+
+/// Drops a leading "to", the verb marker, so "to eat" equals "eat".
+List<String> _stripTo(List<String> words) =>
+    words.length > 1 && words.first == 'to' ? words.sublist(1) : words;
+
+Map<int, double> _searchEnglish(
   List<DictEntry> entries,
   String rawQuery,
   WordIndex index,
 ) {
-  final words = rawQuery.toLowerCase().trim().split(RegExp(r'\s+'));
-  if (words.isEmpty || words.first.isEmpty) return [];
+  final words = _words(rawQuery);
+  final query = _stripTo(words);
+  final queryIsVerb = query.length < words.length;
+  if (query.isEmpty) return {};
+  final content = query.where((w) => !_stopwords.contains(w)).toSet();
+  if (content.isEmpty) content.addAll(query);
 
-  final postings = [for (final w in words.toSet()) index.postingsFor(w)];
-  final entryLists = [for (final p in postings) _entryIds(p)];
-
-  final seen = Uint8List(entries.length);
-  final results = <SearchResult>[];
-
-  void emit(int tier, Iterable<int> ids) {
-    for (final i in ids) {
-      if (seen[i] != 0) continue;
-      seen[i] = 1;
-      results.add(SearchResult(entry: entries[i], tier: tier));
+  // Candidates: entries containing any content word, or one as a substring.
+  final candidates = <int>{
+    for (final w in content) ..._entryIds(index.postingsFor(w)),
+  };
+  for (final w in content.where((w) => w.length >= 3)) {
+    for (var i = 0; i < entries.length; i++) {
+      if (index.normStr[i].contains(w)) candidates.add(i);
     }
   }
 
-  // Tier 0: all query words present in a single definition.
-  emit(0, _entryIds(_intersect(postings)));
+  return {
+    for (final i in candidates)
+      i: _englishQuality(entries[i], query, content, queryIsVerb),
+  };
+}
 
-  // Tier 1: all query words present across all definitions combined.
-  emit(1, _intersect(entryLists));
+/// 0–1 quality of [e]'s best meaning for [query]. A meaning is one
+/// ';'-separated part of a definition.
+double _englishQuality(
+  DictEntry e,
+  List<String> query,
+  Set<String> content,
+  bool queryIsVerb,
+) {
+  // An entry whose only sense is the query (老师 "teacher") matches more
+  // exactly than one listing it among many (先生 "teacher; sir; husband…").
+  final senses = e.definitions
+      .expand((d) => d.split(';'))
+      .where((m) => !m.trim().toLowerCase().startsWith('cl:'))
+      .length;
+  final specificity = 0.95 + 0.05 / math.max(1, senses);
 
-  // Tier 2: any query word present as a whole word in any definition.
-  emit(2, _union(entryLists));
+  // An entry led by an archaic or literary sense (那 nuó "(archaic) many")
+  // is a rare reading as a whole.
+  final rareEntry = e.definitions.isNotEmpty &&
+      _rareLabels.any(e.definitions.first.toLowerCase().contains);
 
-  // Tier 3: any query word as a substring in the normalized combined string.
-  for (var i = 0; i < entries.length; i++) {
-    if (seen[i] == 0 && words.any(index.normStr[i].contains)) emit(3, [i]);
+  var best = 0.0;
+  for (var d = 0; d < e.definitions.length; d++) {
+    final def = e.definitions[d].toLowerCase();
+    final register = rareEntry || _rareLabels.any(def.contains)
+        ? 0.7
+        : def.contains('(bound form)') ? 0.9 : 1.0;
+    // Earlier definitions are the main senses.
+    final position = 1 - math.min(0.15, 0.04 * d);
+
+    for (final raw in def.split(';')) {
+      final meaning = raw.trim();
+      if (meaning.startsWith('cl:')) continue;
+      final indirect = _indirectPrefixes.any(meaning.startsWith) ? 0.5 : 1.0;
+      // Bracket text left after labels narrows the meaning:
+      // "to drink (alcohol)", "(of a computer etc) to read (data)".
+      final unlabeled = meaning
+          .replaceAll(RegExp(r'\((sth|sb|sth\.|sb\.|cl:[^)]*)\)'), '')
+          .replaceAll('(bound form)', '');
+      final unlabeledOther =
+          _rareLabels.fold(unlabeled, (s, l) => s.replaceAll(l, ''));
+      final qualified = unlabeledOther.contains('(') ? 0.93 : 1.0;
+      final words = _words(meaning.replaceAll(_bracketed, ' '));
+      final m = _stripTo(words);
+      if (m.isEmpty) continue;
+      // "water" should prefer the noun over "to water (plants)", and
+      // "to run" the verb over "run (of stockings)".
+      final partOfSpeech = (m.length < words.length) == queryIsVerb ? 1.0 : 0.9;
+
+      final double base;
+      if (_listEquals(m, query)) {
+        base = 1.0;
+      } else if (_containsRun(m, query)) {
+        base = 0.7 + 0.15 * query.length / m.length;
+      } else if (content.every(m.contains)) {
+        base = 0.55 + 0.15 * content.length / m.length;
+      } else {
+        continue;
+      }
+      best = math.max(
+          best,
+          base * register * indirect * position * specificity * partOfSpeech *
+              qualified);
+    }
   }
+  if (best > 0) return best;
 
-  return results;
+  // No single meaning holds every content word.
+  final all = {for (final d in e.definitions) ...tokenizeDef(d)};
+  final matched = content.where(all.contains).length;
+  if (matched == content.length) return 0.45;
+  if (matched > 0) return 0.25 + 0.1 * matched / content.length;
+  return 0.15; // substring only
+}
+
+bool _listEquals(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Whether [needle] occurs as a contiguous run of words in [hay].
+bool _containsRun(List<String> hay, List<String> needle) {
+  for (var s = 0; s + needle.length <= hay.length; s++) {
+    var k = 0;
+    while (k < needle.length && hay[s + k] == needle[k]) {
+      k++;
+    }
+    if (k == needle.length) return true;
+  }
+  return false;
 }
 
 /// Distinct entry ids of ascending [postings], ascending.
@@ -354,69 +530,9 @@ List<int> _entryIds(List<int> postings) {
   return ids;
 }
 
-/// Values present in every one of the ascending [lists], ascending.
-List<int> _intersect(List<List<int>> lists) {
-  final sorted = [...lists]..sort((a, b) => a.length.compareTo(b.length));
-  var acc = sorted.first;
-  for (final other in sorted.skip(1)) {
-    final next = <int>[];
-    var j = 0;
-    for (final v in acc) {
-      while (j < other.length && other[j] < v) {
-        j++;
-      }
-      if (j == other.length) break;
-      if (other[j] == v) next.add(v);
-    }
-    acc = next;
-  }
-  return acc;
-}
-
-/// Values present in any of the ascending [lists], ascending and distinct.
-List<int> _union(List<List<int>> lists) {
-  if (lists.length == 1) return lists.first;
-  final all = [for (final l in lists) ...l]..sort();
-  final out = <int>[];
-  for (final v in all) {
-    if (out.isEmpty || out.last != v) out.add(v);
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const _freqUnranked = 99999;
-
-int _freq(DictEntry e, Map<String, int> freqMap) =>
-    freqMap[e.simplified] ?? freqMap[e.traditional] ?? _freqUnranked;
-
-int _hsk(DictEntry e) =>
-    kHskLevel[e.simplified] ?? kHskLevel[e.traditional] ?? 99;
-
-// Sort priority: tier → HSK level → entry length → character-freq rank →
-// first sub-def length.
-// Entry length ensures shorter matches beat longer compounds within the same
-// tier (e.g. startsWith tier: 好 beats 好吃 beats 好不容易).
-// HSK level ensures common vocabulary beats rarer synonyms of equal length.
-List<SearchResult> _sort(List<SearchResult> results, Map<String, int> freqMap) {
-  results.sort((a, b) {
-    final t = a.tier.compareTo(b.tier);
-    if (t != 0) return t;
-    final len = a.entry.simplified.length.compareTo(b.entry.simplified.length);
-    if (len != 0) return len;
-    final h = _hsk(a.entry).compareTo(_hsk(b.entry));
-    if (h != 0) return h;
-    final f = _freq(a.entry, freqMap).compareTo(_freq(b.entry, freqMap));
-    if (f != 0) return f;
-    // Use text before the first ';' so "pretty; beautiful" competes as "pretty".
-    return a.entry.definitions.first.split(';').first.trim().length
-        .compareTo(b.entry.definitions.first.split(';').first.trim().length);
-  });
-  return results;
-}
 
 // Normalise a raw query to the same form used by flatten():
 // convert Unicode tone marks → numbered, strip spaces and apostrophes,

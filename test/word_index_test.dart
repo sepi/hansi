@@ -31,33 +31,19 @@ void main() {
     expect(index.postings.length, occurrences);
   });
 
-  test('English search matches the set-based search exactly', () {
-    final queries = <String>[
-      'pretty', 'beautiful', 'student', 'university', 'walk', 'ephemeral',
-      'to speak', 'turn on', 'TURN   On', '  to speak  ', 'to to', 'a', 'the',
-      'of', 'to', 'bank', 'cl', 'ge4', 'speak say', 'go to school',
-      'very good', 'a b c d', "it's", 'u.s.', '(a', 'to-do', 'xyzzy',
-      'mother', 'ni hao', '1', '2008', 'e', 'ing', 'tion', 'pre', 'zzz qqq',
-    ];
-    final words = index.words;
-    for (var k = 0; k < words.length; k += 500) {
-      final w = words[k];
-      queries.add(w);
-      if (k + 250 < words.length) queries.add('$w ${words[k + 250]}');
-      if (w.length > 4) queries.add(w.substring(1, w.length - 1));
-    }
-
-    for (final q in queries) {
-      final expected = referenceSearchEnglish(corpus, q, reference);
-      final actual = searchEnglish(corpus, q, index);
-      expect(actual.length, expected.length, reason: 'result count for "$q"');
-      for (var i = 0; i < expected.length; i++) {
-        expect(identical(actual[i].entry, expected[i].entry), isTrue,
-            reason: '"$q" position $i: got ${actual[i].entry.simplified}, '
-                'expected ${expected[i].entry.simplified}');
-        expect(actual[i].tier, expected[i].tier,
-            reason: '"$q" position $i tier');
+  test('every word maps to exactly the (entry, definition) pairs that contain it', () {
+    final expected = <String, List<int>>{};
+    for (var i = 0; i < reference.perDef.length; i++) {
+      final defs = reference.perDef[i];
+      for (var d = 0; d < defs.length; d++) {
+        for (final w in defs[d]) {
+          (expected[w] ??= []).add((i << 5) | d);
+        }
       }
     }
+    for (final w in index.words) {
+      expect(index.postingsFor(w), expected[w], reason: 'postings for "$w"');
+    }
+    expect(index.postingsFor('xyzzy'), isEmpty);
   });
 }
