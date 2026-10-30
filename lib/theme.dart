@@ -32,9 +32,6 @@ const kRed = Color(0xFFC0392B);
 /// Background fill for stroke-order canvases.
 const kStrokeBg = Color(0xFFF5F5F5);
 
-/// Dotted underline color on tappable sentence segments.
-const kSegmentUnderline = Color(0xFFAAAAAA);
-
 const kDefaultToneColors = [
   Color(0xFFCC0000), // tone 1 — red
   Color(0xFFCC7700), // tone 2 — orange

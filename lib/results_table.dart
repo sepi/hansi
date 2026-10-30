@@ -638,12 +638,7 @@ class _SegmentedSentence extends StatelessWidget {
           onTap: () => onSearch(seg),
           child: Text(
             seg,
-            style: const TextStyle(
-              fontSize: 16,
-              decoration: TextDecoration.underline,
-              decorationStyle: TextDecorationStyle.dotted,
-              decorationColor: kSegmentUnderline,
-            ),
+            style: const TextStyle(fontSize: 16),
           ),
         );
       }).toList(),
