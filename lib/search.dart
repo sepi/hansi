@@ -326,11 +326,16 @@ Map<int, double> _searchHanzi(List<DictEntry> entries, String query) {
 // Pinyin search
 // ---------------------------------------------------------------------------
 
+final _toneDigit = RegExp(r'[1-5]');
+
 Map<int, double> _searchPinyin(List<DictEntry> entries, String rawQuery) {
   final query = _normalizeQuery(rawQuery);
   if (query.isEmpty) return {};
 
   final hasTones = RegExp(r'[1-5?]').hasMatch(query);
+  // Typing ü (or v) asks for ü specifically; a plain u matches both, since
+  // many people type "nu" for 女 nǚ.
+  final strictU = query.contains('ü');
 
   final bool Function(String) exactMatch;
   final bool Function(String) prefixMatch;
@@ -347,11 +352,13 @@ Map<int, double> _searchPinyin(List<DictEntry> entries, String rawQuery) {
     containsMatch = (e) => e.contains(query);
   }
 
-  // CEDICT encodes ü as "u:". Normalise to bare "u" so that users typing
-  // "nuer", "nüer", or "lver" all find 女儿, 旅, etc.
+  // CEDICT encodes ü as "u:".
   String flatten(DictEntry e) {
-    var s = e.pinyin.toLowerCase().replaceAll(' ', '').replaceAll('u:', 'u');
-    if (!hasTones) s = s.replaceAll(RegExp(r'[1-5]'), '');
+    var s = e.pinyin
+        .toLowerCase()
+        .replaceAll(' ', '')
+        .replaceAll('u:', strictU ? 'ü' : 'u');
+    if (!hasTones) s = s.replaceAll(_toneDigit, '');
     return s;
   }
 
@@ -541,13 +548,12 @@ List<int> _entryIds(List<int> postings) {
 
 // Normalise a raw query to the same form used by flatten():
 // convert Unicode tone marks → numbered, strip spaces and apostrophes,
-// and collapse ü/v → u to match CEDICT's u: normalisation in flatten().
+// and read v as ü (a common substitute on keyboards without ü).
 String _normalizeQuery(String raw) =>
     toNumberedPinyin(raw)
         .toLowerCase()
         .replaceAll(RegExp(r"[' ]"), '')
-        .replaceAll('ü', 'u')
-        .replaceAll('v', 'u'); // v is a common ü substitute on many keyboards
+        .replaceAll('v', 'ü');
 
 String _toRegexPattern(String query) => query
     .replaceAllMapped(RegExp(r'[.+*^${}()|[\]\\]'), (m) => '\\${m[0]}')

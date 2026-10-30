@@ -162,6 +162,26 @@ void main() {
       expect(toneless.quality, lessThan(toned.quality));
     });
 
+    test('ü, v and ǚ match only ü; plain u matches u and ü', () {
+      final nv = DictEntry(
+        traditional: '女', simplified: '女', pinyin: 'nu:3', definitions: ['woman'],
+      );
+      final nu = DictEntry(
+        traditional: '努', simplified: '努', pinyin: 'nu3', definitions: ['to strive'],
+      );
+      final entries = [nv, nu];
+      Set<String> hits(String q) => search(entries, q,
+              hanzi: false, pinyin: true, english: false,
+              wordIndex: buildWordIndex(entries))
+          .map((r) => r.entry.simplified)
+          .toSet();
+      for (final q in ['nü', 'nv', 'nǚ', 'nü3', 'nv3']) {
+        expect(hits(q), {'女'}, reason: q);
+      }
+      expect(hits('nu'), {'女', '努'});
+      expect(hits('nu3'), {'女', '努'});
+    });
+
     test('query normalises unicode tones: nǐ → ni3', () {
       final toned = _search('nǐ', pinyin: true);
       final plain = _search('ni3', pinyin: true);

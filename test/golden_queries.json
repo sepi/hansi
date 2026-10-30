@@ -56,5 +56,9 @@
   {"query": "small", "expect": "小", "within": 1},
   {"query": "to drink", "expect": "喝", "within": 1},
   {"query": "house", "expect": "房子", "within": 3},
-  {"query": "evening", "expect": "晚上", "within": 2}
+  {"query": "evening", "expect": "晚上", "within": 2},
+  {"query": "nü", "expect": "女", "within": 1},
+  {"query": "nv3", "expect": "女", "within": 1},
+  {"query": "lvse", "expect": "绿色", "within": 1},
+  {"query": "nu", "expect": "女", "within": 5}
 ]
