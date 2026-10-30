@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Intermediate output of tool/gen_sentences.py, not used by the app
+assets/example_sentences.json.char
