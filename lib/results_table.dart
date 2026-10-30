@@ -204,19 +204,15 @@ class _ResultsTableState extends State<ResultsTable> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (widget.ankiInstalled)
-                            _AnkiButton(
-                              hanzi: hanzi,
-                              pinyin: pinyin,
-                              english: english,
-                            ),
-                          _TtsButton(
-                              text: hanzi,
-                              traditional: widget.showTraditional),
-                        ],
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _EntryMenu(
+                          hanzi: hanzi,
+                          pinyin: pinyin,
+                          english: english,
+                          traditional: widget.showTraditional,
+                          ankiInstalled: widget.ankiInstalled,
+                        ),
                       ),
                       Opacity(
                         opacity: hskLvl != null ? 1.0 : 0.0,
@@ -338,6 +334,8 @@ class _TtsButton extends StatelessWidget {
         color: Colors.grey.shade500,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        style: const ButtonStyle(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap),
         tooltip: 'Listen',
         onPressed: () => TtsService.instance.speak(text, traditional: traditional),
       ),
@@ -346,18 +344,24 @@ class _TtsButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Anki button
+// Entry context menu
 // ---------------------------------------------------------------------------
 
-class _AnkiButton extends StatelessWidget {
-  const _AnkiButton({
+enum _EntryAction { listen, anki }
+
+class _EntryMenu extends StatelessWidget {
+  const _EntryMenu({
     required this.hanzi,
     required this.pinyin,
     required this.english,
+    required this.traditional,
+    required this.ankiInstalled,
   });
   final String hanzi;
   final String pinyin;
   final String english;
+  final bool traditional;
+  final bool ankiInstalled;
 
   void _snack(BuildContext context, String msg, {int seconds = 2}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -367,33 +371,57 @@ class _AnkiButton extends StatelessWidget {
     ));
   }
 
+  Future<void> _addToAnki(BuildContext context) async {
+    final granted = await ensureAnkiPermission(context);
+    if (!context.mounted) return;
+    if (!granted) {
+      _snack(context,
+          'Permission denied — grant it in Settings → Apps → Hansi → Permissions',
+          seconds: 5);
+      return;
+    }
+    try {
+      await AnkiService.instance.addNote(hanzi, pinyin, english);
+      if (context.mounted) _snack(context, 'Added to AnkiDroid');
+    } on PlatformException catch (e) {
+      if (context.mounted) {
+        _snack(context, e.message ?? 'Failed to add note', seconds: 5);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.send),
-      iconSize: 20,
-      color: Colors.grey.shade500,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 26, minHeight: 30),
-      tooltip: 'Add to AnkiDroid',
-      onPressed: () async {
-        final granted = await ensureAnkiPermission(context);
-        if (!context.mounted) return;
-        if (!granted) {
-          _snack(context,
-              'Permission denied — grant it in Settings → Apps → Hansi → Permissions',
-              seconds: 5);
-          return;
-        }
-        try {
-          await AnkiService.instance.addNote(hanzi, pinyin, english);
-          if (context.mounted) _snack(context, 'Added to AnkiDroid');
-        } on PlatformException catch (e) {
-          if (context.mounted) {
-            _snack(context, e.message ?? 'Failed to add note', seconds: 5);
-          }
+    return PopupMenuButton<_EntryAction>(
+      icon: Icon(Icons.more_vert, color: Colors.grey.shade500),
+      tooltip: 'More',
+      onSelected: (action) {
+        switch (action) {
+          case _EntryAction.listen:
+            TtsService.instance.speak(hanzi, traditional: traditional);
+          case _EntryAction.anki:
+            _addToAnki(context);
         }
       },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: _EntryAction.listen,
+          child: ListTile(
+            leading: Icon(Icons.volume_up_outlined),
+            title: Text('Listen'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (ankiInstalled)
+          const PopupMenuItem(
+            value: _EntryAction.anki,
+            child: ListTile(
+              leading: Icon(Icons.send),
+              title: Text('Add to AnkiDroid'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+      ],
     );
   }
 }
