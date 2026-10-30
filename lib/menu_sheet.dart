@@ -363,7 +363,7 @@ class AboutDialog extends StatelessWidget {
                       'License',
                       'GNU Affero General Public License v3.0 or later '
                       '(AGPL-3.0-or-later).\n'
-                      'Source code available at the author\'s request.',
+                      'Source code: https://github.com/sepi/hansi',
                     ),
 
                     // ── Dictionary & data ────────────────────────────────────

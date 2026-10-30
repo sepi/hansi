@@ -1,0 +1,43 @@
+# F-Droid build recipe. Its home is the fdroiddata repository, as
+# metadata/lu.mancini.hansi.yml; this copy is for reference and local test
+# builds with fdroidserver. Add a Builds entry per release: bump `version:` in
+# pubspec.yaml (versionName+versionCode) and tag the commit vX.Y.Z.
+Categories:
+  - Reading
+License: AGPL-3.0-or-later
+AuthorName: Raffael Mancini
+SourceCode: https://github.com/sepi/hansi
+IssueTracker: https://github.com/sepi/hansi/issues
+
+AutoName: Hansi
+
+RepoType: git
+Repo: https://github.com/sepi/hansi.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@3.41.9
+    rm:
+      - ios
+      - linux
+      - macos
+      - windows
+      - web
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1
