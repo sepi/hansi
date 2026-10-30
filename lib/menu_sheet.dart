@@ -396,8 +396,8 @@ class AboutDialog extends StatelessWidget {
                       'Example Sentences',
                       'Generated with Claude (Anthropic) and segmented using jieba. '
                       'AI-generated content; errors may occur.\n'
-                      'Licensed under Creative Commons Attribution-NonCommercial-'
-                      'ShareAlike 4.0 International (CC BY-NC-SA 4.0).',
+                      'Licensed under Creative Commons Attribution-ShareAlike 4.0 '
+                      'International (CC BY-SA 4.0).',
                     ),
 
                     // ── Stroke graphics ──────────────────────────────────────
