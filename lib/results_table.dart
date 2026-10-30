@@ -238,41 +238,15 @@ class _ResultsTableState extends State<ResultsTable> {
     );
   }
 
-  void _copy(BuildContext context, String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied'),
-        duration: Duration(milliseconds: 1200),
-        behavior: SnackBarBehavior.floating,
-        width: 120,
-      ),
-    );
-  }
-
   Widget _buildDetail(BuildContext context, DictEntry entry) {
     final hanzi = widget.showTraditional ? entry.traditional : entry.simplified;
-    final pinyin = toUnicodePinyin(entry.pinyin);
-    final defs = entry.definitions.join('; ');
-    final all = '$hanzi\t$pinyin\t$defs';
     final syllables = entry.pinyin.split(' ');
-
-    Widget copyBtn(String label, String text) => OutlinedButton.icon(
-          onPressed: () => _copy(context, text),
-          icon: const Icon(Icons.copy_outlined, size: 12),
-          label: Text(label),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            textStyle: const TextStyle(fontSize: 11),
-            visualDensity: VisualDensity.compact,
-          ),
-        );
 
     return Column(
       children: [
         const Divider(height: 1, indent: 16, endIndent: 16),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -291,19 +265,6 @@ class _ResultsTableState extends State<ResultsTable> {
                   },
                   onSearchTap: (i) => widget.onSearch(hanzi[i]),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  copyBtn('汉', hanzi),
-                  const SizedBox(height: 4),
-                  copyBtn('pī', pinyin),
-                  const SizedBox(height: 4),
-                  copyBtn('En', defs),
-                  const SizedBox(height: 4),
-                  copyBtn('All', all),
-                ],
               ),
             ],
           ),
@@ -346,7 +307,7 @@ class _TtsButton extends StatelessWidget {
 // Entry context menu
 // ---------------------------------------------------------------------------
 
-enum _EntryAction { listen, anki }
+enum _EntryAction { listen, anki, copyHanzi, copyPinyin, copyEnglish, copyAll }
 
 class _EntryMenu extends StatelessWidget {
   const _EntryMenu({
@@ -368,6 +329,18 @@ class _EntryMenu extends StatelessWidget {
       duration: Duration(seconds: seconds),
       behavior: SnackBarBehavior.floating,
     ));
+  }
+
+  void _copy(BuildContext context, String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied'),
+        duration: Duration(milliseconds: 1200),
+        behavior: SnackBarBehavior.floating,
+        width: 120,
+      ),
+    );
   }
 
   Future<void> _addToAnki(BuildContext context) async {
@@ -405,6 +378,14 @@ class _EntryMenu extends StatelessWidget {
             TtsService.instance.speak(hanzi, traditional: traditional);
           case _EntryAction.anki:
             _addToAnki(context);
+          case _EntryAction.copyHanzi:
+            _copy(context, hanzi);
+          case _EntryAction.copyPinyin:
+            _copy(context, pinyin);
+          case _EntryAction.copyEnglish:
+            _copy(context, english);
+          case _EntryAction.copyAll:
+            _copy(context, '$hanzi\t$pinyin\t$english');
         }
       },
       itemBuilder: (_) => [
@@ -422,6 +403,21 @@ class _EntryMenu extends StatelessWidget {
             child: ListTile(
               leading: Icon(Icons.send),
               title: Text('Add to AnkiDroid'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        const PopupMenuDivider(),
+        for (final (action, label) in const [
+          (_EntryAction.copyHanzi, 'Copy hanzi'),
+          (_EntryAction.copyPinyin, 'Copy pinyin'),
+          (_EntryAction.copyEnglish, 'Copy English'),
+          (_EntryAction.copyAll, 'Copy all'),
+        ])
+          PopupMenuItem(
+            value: action,
+            child: ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: Text(label),
               contentPadding: EdgeInsets.zero,
             ),
           ),
@@ -528,10 +524,12 @@ class _SentencesSectionState extends State<_SentencesSection> {
     Widget toggleBtn(String label, bool active, VoidCallback onTap) =>
         OutlinedButton(
           onPressed: onTap,
+          // Sized to the label instead of Material's 64×48 minimum.
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            minimumSize: const Size(30, 26),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             textStyle: const TextStyle(fontSize: 11),
-            visualDensity: VisualDensity.compact,
             backgroundColor: active ? primaryContainer : null,
             foregroundColor: active ? onPrimaryContainer : null,
           ),
@@ -542,7 +540,7 @@ class _SentencesSectionState extends State<_SentencesSection> {
       final pinyin = _pinyinRevealed.contains(uid);
       final english = _englishRevealed.contains(uid);
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 5, 4, 5),
+        padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -583,6 +581,7 @@ class _SentencesSectionState extends State<_SentencesSection> {
                 ],
               ),
             ),
+            const SizedBox(width: 6),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
