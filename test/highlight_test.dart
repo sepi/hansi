@@ -24,6 +24,14 @@ void main() {
     expect(_render(highlightWords('to speak', 'to')), '[to] speak');
   });
 
+  test('matches ignore accents in either text or query', () {
+    expect(_render(highlightWords('café; coffee shop', 'cafe')),
+        '[café]; coffee shop');
+    expect(_render(highlightWords('Zurich, Switzerland', 'zürich')),
+        '[Zurich], Switzerland');
+    expect(_render(highlightWords('Zürich', 'rich')), 'Zürich');
+  });
+
   test('hanzi query highlights nothing', () {
     expect(_render(highlightWords('good; well', '好')), 'good; well');
   });

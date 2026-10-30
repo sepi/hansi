@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'dict_entry.dart';
 import 'pinyin_utils.dart';
+import 'words.dart';
 
 // ---------------------------------------------------------------------------
 // Word index — inverted index from English word to (entry, definition)
@@ -59,12 +60,7 @@ class WordIndex {
   }
 }
 
-Set<String> tokenizeDef(String def) => def
-    .toLowerCase()
-    .replaceAll(';', ' ')
-    .split(RegExp(r'\W+'))
-    .where((w) => w.isNotEmpty)
-    .toSet();
+Set<String> tokenizeDef(String def) => words(def).toSet();
 
 /// Builds a [WordIndex] one entry at a time, so boot-time loading can yield
 /// between chunks. Entries must be added in dictionary order.
@@ -147,8 +143,7 @@ WordIndex buildWordIndex(List<DictEntry> entries) {
 }
 
 /// An entry's definitions, lowercased and joined, for substring matching.
-String _normalizedDefs(DictEntry e) =>
-    e.definitions.map((d) => d.toLowerCase().replaceAll(';', ' ')).join(' ');
+String _normalizedDefs(DictEntry e) => foldText(e.definitions.join(' '));
 
 // ---------------------------------------------------------------------------
 // Prebuilt index file (assets/word_index.bin, written by tool/build_index.dart)
@@ -683,7 +678,6 @@ class _PinyinQuery {
 // English search
 // ---------------------------------------------------------------------------
 
-final _nonWord = RegExp(r'\W+');
 final _bracketed = RegExp(r'\([^)]*\)|\[[^\]]*\]');
 final _neutralBrackets = RegExp(r'\((sth|sb|sth\.|sb\.|cl:[^)]*)\)');
 
@@ -702,9 +696,6 @@ const _indirectPrefixes = [
   'surname', 'used in', 'see ', 'abbr.', 'japanese variant',
 ];
 
-List<String> _words(String s) =>
-    s.toLowerCase().split(_nonWord).where((w) => w.isNotEmpty).toList();
-
 /// Drops a leading "to", the verb marker, so "to eat" equals "eat".
 List<String> _stripTo(List<String> words) =>
     words.length > 1 && words.first == 'to' ? words.sublist(1) : words;
@@ -714,12 +705,12 @@ class _EnglishQuery {
   _EnglishQuery._(this.query, this.content, this.isVerb);
 
   static _EnglishQuery? parse(String rawQuery) {
-    final words = _words(rawQuery);
-    final query = _stripTo(words);
+    final all = words(rawQuery);
+    final query = _stripTo(all);
     if (query.isEmpty) return null;
     final content = query.where((w) => !_stopwords.contains(w)).toSet();
     if (content.isEmpty) content.addAll(query);
-    return _EnglishQuery._(query, content, query.length < words.length);
+    return _EnglishQuery._(query, content, query.length < all.length);
   }
 
   /// Query words, without a leading "to".
@@ -787,11 +778,11 @@ class _EnglishQuery {
                 .replaceAll('(bound form)', ''),
             (s, l) => s.replaceAll(l, ''));
         final qualified = unlabeled.contains('(') ? w.qualified : 1.0;
-        final words = _words(meaning.replaceAll(_bracketed, ' '));
-        final m = _stripTo(words);
+        final all = words(meaning.replaceAll(_bracketed, ' '));
+        final m = _stripTo(all);
         if (m.isEmpty) continue;
         final partOfSpeech =
-            (m.length < words.length) == isVerb ? 1.0 : w.partOfSpeech;
+            (m.length < all.length) == isVerb ? 1.0 : w.partOfSpeech;
 
         final String kind;
         final double base;

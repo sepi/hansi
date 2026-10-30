@@ -63,5 +63,8 @@
   {"query": "nu", "expect": "女", "within": 5},
   {"query": "love", "expect": "爱", "within": 1},
   {"query": "nǐhǎo", "expect": "你好", "within": 1},
-  {"query": "lǜsè", "expect": "绿色", "within": 1}
+  {"query": "lǜsè", "expect": "绿色", "within": 1},
+  {"query": "cafe", "expect": "咖啡馆", "within": 3},
+  {"query": "zürich", "expect": "苏黎世", "within": 1},
+  {"query": "pokemon", "expect": "宝可梦", "within": 3}
 ]
