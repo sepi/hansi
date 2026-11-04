@@ -13,7 +13,7 @@ Repo: https://github.com/sepi/hansi.git
 Builds:
   - versionName: 1.0.2
     versionCode: 3
-    commit: d4334551698124ff87fbff5c3a2595b3f7aa7efa
+    commit: 04d1c8b115d40d30f77a9a4219cb791f9b9103dc
     output: build/app/outputs/flutter-apk/app-release.apk
     srclibs:
       - flutter@stable
