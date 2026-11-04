@@ -16,7 +16,7 @@ Builds:
     commit: d4334551698124ff87fbff5c3a2595b3f7aa7efa
     output: build/app/outputs/flutter-apk/app-release.apk
     srclibs:
-      - flutter@3.41.9
+      - flutter@stable
     rm:
       - ios
       - linux
@@ -24,9 +24,14 @@ Builds:
       - windows
       - web
     prebuild:
+      # The exact Flutter release is pinned in pubspec.yaml (environment:
+      # flutter: X.Y.Z); check it out in the srclib.
+      - flutterVersion=$(sed -n -E 's/^  flutter:[[:space:]]+([0-9.]+)$/\1/p' pubspec.yaml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
-      - $$flutter$$/bin/flutter pub get
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
       # DevTools add-ons bundled in some packages (shared_preferences,
       # provider): prebuilt web apps with wasm and fonts, never part of an
       # Android build.

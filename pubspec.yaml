@@ -21,6 +21,9 @@ version: 1.0.1+2
 
 environment:
   sdk: ^3.11.5
+  # Exact Flutter release this app is built with. F-Droid's recipe reads it
+  # from here; `flutter pub get` refuses any other version.
+  flutter: 3.41.9
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
